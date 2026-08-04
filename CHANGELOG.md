@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Infrastructure
 - **GitManager**: Git operations for wiki repo (`infrastructure/git.py`)
-- **DatabaseManager**: SQLAlchemy SQLite with schema (`infrastructure/database.py`)
+- **FileManager**: File-based storage layer — NO SQL, markdown files on disk (`infrastructure/database.py`)
 
 #### Application Layer
 - Service layer placeholders for use-case orchestration
@@ -64,9 +64,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **.env.example**: Configuration template
 - **.gitignore**: Standard Python/Node.js ignores
 
-### Tech Stack
+## [0.2.0] - 2026-08-05
+
+### Changed
+
+#### Architecture — Complete Separation from wiki_app
+- **NO dependency on wiki_app**: OSLW is fully isolated, self-contained
+- **File-based storage ONLY**: No SQL, no SQLite, no database cache
+- **All data lives in markdown files**: wiki/, raw/, index.md are the source of truth
+- **Configuration-driven paths**: No hardcoded paths — all from Settings
+
+#### Infrastructure
+- **REMOVED DatabaseManager (SQLAlchemy)**: Replaced with FileManager
+- **FileManager**: Direct file operations on wiki/, raw/ directories
+  - Read/write wiki pages by slug or path
+  - Parse frontmatter (slug, title, type, tags, sources, sha256, created, updated)
+  - List wiki pages with optional category filter
+  - List raw articles
+  - Update/rebuild index.md from all pages
+  - Delete pages with index cleanup
+  - Page count statistics
+- **GitManager**: Path from Settings (not hardcoded)
+
+#### Configuration
+- **REMOVED database_url, database_echo**: No database configuration
+- **wiki_root**: Configurable path to wiki files (default: `./wiki`)
+- **Properties**: raw_path, wiki_path, index_path, schema_path, inbox_path, graph_file, graphify_dir
+
+#### Domain Layer
+- All domain modules use Settings for paths (not hardcoded)
+- No imports from wiki_app
+- No SQL/database dependencies
+
+### Technical Stack
 - Backend: FastAPI + Uvicorn
-- Database: SQLite + SQLAlchemy
+- Storage: Markdown files on disk (NO database)
 - Frontend: Next.js 15 (App Router)
 - CLI: Typer
 - Configuration: Pydantic Settings
@@ -74,5 +106,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Architecture
 - Clean Architecture: domain (framework-agnostic) → application → infrastructure → api
-- Single wiki database instance
-- Files remain source of truth; SQLite = cache/index/search
+- **File-based storage**: All data in markdown files
+- **No database**: No SQL, no cache, no separate data store
+- **Fully isolated**: Zero dependency on wiki_app

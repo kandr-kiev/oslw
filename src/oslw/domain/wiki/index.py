@@ -54,7 +54,7 @@ class WikiIndex:
     - Lookup by slug or path
 
     Usage:
-        index = WikiIndex(wiki_root="/workspace/llm-wiki")
+        index = WikiIndex(wiki_root=Path("./wiki"))
         index.load()  # Load from index.md
         index.add_entry("transformers-architecture", "wiki/concepts/transformers-architecture.md")
         index.save()  # Save changes
@@ -67,7 +67,7 @@ class WikiIndex:
         """Initialize WikiIndex.
 
         Args:
-            wiki_root: Path to wiki root directory
+            wiki_root: Path to wiki root directory (configurable, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
         self.index_path = self.wiki_root / "wiki" / "index.md"

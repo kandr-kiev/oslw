@@ -24,18 +24,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # ========================================================================
-    # Wiki Root (source of truth - file-based)
+    # Wiki Root (source of truth - file-based ONLY, no database)
     # ========================================================================
-    wiki_root: Path = Field(default=Path("/workspace/llm-wiki"))
-
-    # ========================================================================
-    # Database (SQLite - cache/index/search)
-    # ========================================================================
-    database_url: str = Field(
-        default="sqlite+aiosqlite:///data/oslw.db",
-        description="SQLite database URL",
+    wiki_root: Path = Field(
+        default=Path("./wiki"),
+        description="Root directory for wiki files (raw/ + wiki/)",
     )
-    database_echo: bool = False
 
     # ========================================================================
     # API

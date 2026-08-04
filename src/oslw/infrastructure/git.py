@@ -49,7 +49,8 @@ class GitManager:
     - Push/pull operations
 
     Usage:
-        git = GitManager(repo_path="/workspace/llm-wiki")
+        from oslw.config import settings
+        git = GitManager(repo_path=settings.wiki_root)
         status = git.status()
         if status.has_changes:
             git.commit("Update wiki pages")
@@ -60,7 +61,7 @@ class GitManager:
         """Initialize GitManager.
 
         Args:
-            repo_path: Path to git repository
+            repo_path: Path to git repository (from Settings, not hardcoded)
         """
         self.repo_path = Path(repo_path)
 

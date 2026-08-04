@@ -49,7 +49,8 @@ class NewspaperDigest:
     - Graph statistics
 
     Usage:
-        digest = NewspaperDigest(wiki_root="/workspace/llm-wiki")
+        from oslw.config import settings
+        digest = NewspaperDigest(wiki_root=settings.wiki_root)
         entries = digest.generate(hours=24)
         for entry in entries:
             print(f"[{entry.type}] {entry.page}: {entry.title}")
@@ -59,7 +60,7 @@ class NewspaperDigest:
         """Initialize NewspaperDigest.
 
         Args:
-            wiki_root: Path to wiki root directory
+            wiki_root: Path to wiki root directory (from Settings, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
 

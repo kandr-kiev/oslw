@@ -69,7 +69,7 @@ class WikiDoctor:
     3. metadata: Check frontmatter fields
 
     Usage:
-        doctor = WikiDoctor(wiki_root="/workspace/llm-wiki")
+        doctor = WikiDoctor(wiki_root=Path("./wiki"))
         result = doctor.diagnose(layer="all")
         for issue in result.issues:
             print(f"[{issue.severity}] {issue.code}: {issue.file}")
@@ -83,7 +83,7 @@ class WikiDoctor:
         """Initialize WikiDoctor.
 
         Args:
-            wiki_root: Path to wiki root directory
+            wiki_root: Path to wiki root directory (configurable, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
 

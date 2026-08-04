@@ -49,7 +49,7 @@ class PageIntegrity:
     - Missing file detection
 
     Usage:
-        integrity = PageIntegrity(wiki_root="/workspace/llm-wiki")
+        integrity = PageIntegrity(wiki_root=Path("./wiki"))
         result = integrity.check_page("wiki/concepts/transformers.md")
         if not result.sha256_match:
             print(f"SHA256 drift: {result.sha256_expected} != {result.sha256_actual}")
@@ -62,7 +62,7 @@ class PageIntegrity:
         """Initialize PageIntegrity.
 
         Args:
-            wiki_root: Path to wiki root directory
+            wiki_root: Path to wiki root directory (configurable, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
 

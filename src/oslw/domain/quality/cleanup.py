@@ -45,7 +45,8 @@ class Deduplication:
     - Content similarity detection
 
     Usage:
-        dedup = Deduplication(wiki_root="/workspace/llm-wiki")
+        from oslw.config import settings
+        dedup = Deduplication(wiki_root=settings.wiki_root)
         groups = dedup.find_duplicates()
         for group in groups:
             print(f"Base: {group.base_slug}")
@@ -56,7 +57,7 @@ class Deduplication:
         """Initialize Deduplication.
 
         Args:
-            wiki_root: Path to wiki root directory
+            wiki_root: Path to wiki root directory (from Settings, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
 

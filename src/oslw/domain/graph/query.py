@@ -4,7 +4,8 @@ Performs fuzzy matching and BFS traversal on the knowledge graph
 to find relevant pages for a query.
 
 Usage:
-    query = GraphQuery(wiki_root="/workspace/llm-wiki")
+    from oslw.config import settings
+    query = GraphQuery(wiki_root=settings.wiki_root)
     results = query.search("transformers", depth=2, limit=5)
 """
 
@@ -52,7 +53,8 @@ class GraphQuery:
     5. Return top-K results
 
     Usage:
-        query = GraphQuery(wiki_root="/workspace/llm-wiki")
+        from oslw.config import settings
+        query = GraphQuery(wiki_root=settings.wiki_root)
         results = query.search("RAG", depth=2, limit=5)
     """
 
@@ -60,7 +62,7 @@ class GraphQuery:
         """Initialize GraphQuery.
 
         Args:
-            wiki_root: Path to wiki root directory
+            wiki_root: Path to wiki root directory (from Settings, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
         self.graph_path = self.wiki_root / "graph-from-wiki.json"

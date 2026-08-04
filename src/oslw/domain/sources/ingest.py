@@ -54,7 +54,8 @@ class ContentIngestor:
     - File writing
 
     Usage:
-        ingestor = ContentIngestor(wiki_root="/workspace/llm-wiki")
+        from oslw.config import settings
+        ingestor = ContentIngestor(wiki_root=settings.wiki_root)
         result = ingestor.ingest(
             title="Transformer Architecture",
             content="# Transformer Architecture\n\n...",
@@ -67,7 +68,7 @@ class ContentIngestor:
         """Initialize ContentIngestor.
 
         Args:
-            wiki_root: Path to wiki root directory
+            wiki_root: Path to wiki root directory (from Settings, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
         self.raw_dir = self.wiki_root / "raw" / "articles"

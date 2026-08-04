@@ -57,7 +57,8 @@ class GraphGenerator:
     a directed graph of nodes and edges.
 
     Usage:
-        generator = GraphGenerator(wiki_root="/workspace/llm-wiki")
+        from oslw.config import settings
+        generator = GraphGenerator(wiki_root=settings.wiki_root)
         graph = generator.generate()
         graph.to_json("graph-from-wiki.json")
     """
@@ -66,7 +67,7 @@ class GraphGenerator:
         """Initialize GraphGenerator.
 
         Args:
-            wiki_root: Path to wiki root directory
+            wiki_root: Path to wiki root directory (from Settings, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
         self.wiki_dir = self.wiki_root / "wiki"

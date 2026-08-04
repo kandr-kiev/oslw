@@ -1,304 +1,425 @@
-"""DatabaseManager - SQLAlchemy SQLite database management.
+"""FileManager - file-based storage layer for OSLW.
 
 Provides:
-- SQLite database connection
-- Session management
-- Model definitions
+- Direct file operations on wiki/, raw/ directories
+- Index.md management
+- Frontmatter read/write
+- File discovery and listing
+
+This is the ONLY data access layer — no SQL, no separate database.
+All data lives in markdown files on disk.
 
 Usage:
-    db = DatabaseManager(db_url="sqlite:///wiki.db")
-    db.connect()
-    session = db.get_session()
-    try:
-        # Use session
-        pass
-    finally:
-        session.close()
+    from oslw.config import settings
+    fm = FileManager(wiki_root=settings.wiki_root)
+    pages = fm.list_wiki_pages()
+    page = fm.read_page("transformers-architecture")
 """
 
 from __future__ import annotations
 
-import json
-from contextlib import contextmanager
+import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
-
 from oslw.config.logging import get_logger
-from oslw.config.settings import Settings
+from oslw.core.exceptions import FileManagerError
 
 logger = get_logger("infrastructure.database")
 
 
-class DatabaseManager:
-    """SQLite database manager for OSLW.
+@dataclass
+class PageMeta:
+    """Metadata extracted from a wiki page file.
 
-    Provides:
-    - SQLite database connection with SQLAlchemy
-    - Session management
-    - Schema initialization
-
-    Usage:
-        db = DatabaseManager(wiki_root="/workspace/llm-wiki")
-        db.connect()
-        with db.get_session() as session:
-            results = session.execute(text("SELECT * FROM pages"))
+    Attributes:
+        slug: Page slug
+        title: Page title
+        description: Page description
+        type: Page type (concept, comparison, etc.)
+        tags: List of tags
+        sources: List of source URLs
+        sha256: SHA256 hash of page content
+        created: Creation timestamp
+        updated: Last modification timestamp
+        path: Full path to the file
+        content: Raw markdown content (without frontmatter)
+        raw_content: Full file content (with frontmatter)
     """
 
-    def __init__(self, settings: Optional[Settings] = None, db_url: Optional[str] = None):
-        """Initialize DatabaseManager.
+    slug: str
+    title: str
+    description: str = ""
+    type: str = "concept"
+    tags: list[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
+    sha256: str = ""
+    created: str = ""
+    updated: str = ""
+    path: Path = field(default_factory=Path)
+    content: str = ""
+    raw_content: str = ""
+
+
+class FileManager:
+    """File-based storage layer for OSLW.
+
+    Provides direct file operations on wiki/, raw/ directories.
+    No SQL, no separate database — all data lives in markdown files.
+
+    Usage:
+        from oslw.config import settings
+        fm = FileManager(wiki_root=settings.wiki_root)
+        pages = fm.list_wiki_pages()
+        page = fm.read_page("transformers-architecture")
+    """
+
+    # Frontmatter field patterns
+    SLUG_PATTERN = re.compile(r'^slug:\s*(\S+)')
+    TITLE_PATTERN = re.compile(r'^title:\s*(.+)')
+    TYPE_PATTERN = re.compile(r'^type:\s*(\S+)')
+    TAGS_PATTERN = re.compile(r'^tags:\s*\[(.+)\]')
+    SOURCES_PATTERN = re.compile(r'^sources:\s*\[(.+)\]')
+    SHA256_PATTERN = re.compile(r'^sha256:\s*(\S+)')
+    CREATED_PATTERN = re.compile(r'^created:\s*(.+)')
+    UPDATED_PATTERN = re.compile(r'^updated:\s*(.+)')
+
+    # Index entry pattern
+    INDEX_ENTRY_PATTERN = re.compile(r'^###\s+(\S+)\s+\[([^\]]+)\](?:\s+(.*))?$')
+
+    def __init__(self, wiki_root: str | Path):
+        """Initialize FileManager.
 
         Args:
-            settings: Application settings
-            db_url: Custom database URL
+            wiki_root: Path to wiki root directory (from Settings, not hardcoded)
         """
-        if db_url:
-            self.db_url = db_url
-        elif settings:
-            db_path = Path(settings.data_dir) / "oslw.db"
-            self.db_url = f"sqlite:///{db_path}"
-        else:
-            self.db_url = "sqlite:///oslw.db"
+        self.wiki_root = Path(wiki_root)
+        self.wiki_dir = self.wiki_root / "wiki"
+        self.raw_dir = self.wiki_root / "raw"
+        self.index_path = self.wiki_dir / "index.md"
 
-        self.engine = None
-        self.SessionLocal = None
-
-    def connect(self) -> None:
-        """Initialize database connection.
-
-        Creates engine and session factory.
-        """
-        # SQLite-specific settings
-        connect_args = {}
-        if self.db_url.startswith("sqlite://"):
-            connect_args["check_same_thread"] = False
-
-        self.engine = create_engine(
-            self.db_url,
-            connect_args=connect_args,
-            echo=False,
-        )
-
-        self.SessionLocal = sessionmaker(
-            autocommit=False,
-            autoflush=False,
-            bind=self.engine,
-        )
-
-        # Initialize schema
-        self._init_schema()
-
-        logger.info("Database connected: %s", self.db_url)
-
-    def _init_schema(self) -> None:
-        """Initialize database schema.
-
-        Creates tables if they don't exist.
-        """
-        with self.engine.connect() as conn:
-            # Pages table
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS pages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    slug TEXT UNIQUE NOT NULL,
-                    title TEXT NOT NULL,
-                    description TEXT DEFAULT '',
-                    type TEXT DEFAULT 'concept',
-                    tags TEXT DEFAULT '[]',
-                    sources TEXT DEFAULT '[]',
-                    confidence REAL DEFAULT 0.5,
-                    content TEXT,
-                    sha256 TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-
-            # Sources table
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS sources (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT UNIQUE NOT NULL,
-                    type TEXT NOT NULL,
-                    url TEXT NOT NULL,
-                    enabled INTEGER DEFAULT 1,
-                    interval_hours INTEGER DEFAULT 6,
-                    last_checked TIMESTAMP,
-                    last_error TEXT,
-                    articles_count INTEGER DEFAULT 0,
-                    tags TEXT DEFAULT '[]',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-
-            # Graph nodes table
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS graph_nodes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    node_id TEXT UNIQUE NOT NULL,
-                    label TEXT NOT NULL,
-                    node_type TEXT DEFAULT 'wiki',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-
-            # Graph edges table
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS graph_edges (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source TEXT NOT NULL,
-                    target TEXT NOT NULL,
-                    label TEXT DEFAULT '',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(source, target)
-                )
-            """))
-
-            conn.commit()
-            logger.info("Database schema initialized")
-
-    @contextmanager
-    def get_session(self) -> Session:
-        """Get a database session.
-
-        Yields:
-            SQLAlchemy Session
-
-        Example:
-            with db.get_session() as session:
-                results = session.execute(text("SELECT * FROM pages"))
-        """
-        session = self.SessionLocal()
-        try:
-            yield session
-            session.commit()
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-
-    def execute(self, query: str, params: Optional[dict] = None):
-        """Execute a raw SQL query.
-
-        Args:
-            query: SQL query string
-            params: Optional query parameters
-
-        Returns:
-            Query results
-        """
-        with self.engine.connect() as conn:
-            result = conn.execute(text(query), params or {})
-            conn.commit()
-            return result
-
-    def page_exists(self, slug: str) -> bool:
-        """Check if a page exists in the database.
+    def read_page(self, slug: str) -> Optional[PageMeta]:
+        """Read a wiki page by slug.
 
         Args:
             slug: Page slug
 
         Returns:
-            True if page exists
+            PageMeta if found, None otherwise
         """
-        with self.get_session() as session:
-            result = session.execute(
-                text("SELECT 1 FROM pages WHERE slug = :slug"),
-                {"slug": slug},
-            )
-            return result.fetchone() is not None
+        # Search for the file
+        file_path = self._find_page_file(slug)
+        if not file_path:
+            logger.warning("Page not found: %s", slug)
+            return None
 
-    def upsert_page(self, slug: str, title: str, description: str = "",
-                    page_type: str = "concept", tags: list = None,
-                    content: str = "", sha256: str = "") -> None:
-        """Insert or update a page in the database.
+        return self._parse_page(file_path)
+
+    def read_page_by_path(self, file_path: str | Path) -> Optional[PageMeta]:
+        """Read a wiki page by file path.
+
+        Args:
+            file_path: Path to the markdown file
+
+        Returns:
+            PageMeta if found, None otherwise
+        """
+        path = Path(file_path)
+        if not path.exists():
+            logger.warning("File not found: %s", path)
+            return None
+
+        return self._parse_page(path)
+
+    def _parse_page(self, file_path: Path) -> PageMeta:
+        """Parse a markdown file into PageMeta.
+
+        Args:
+            file_path: Path to the markdown file
+
+        Returns:
+            PageMeta with extracted metadata
+        """
+        raw_content = file_path.read_text(encoding="utf-8")
+
+        # Extract frontmatter
+        frontmatter = {}
+        content = raw_content
+
+        if raw_content.startswith("---"):
+            parts = raw_content.split("---", 2)
+            if len(parts) >= 3:
+                frontmatter_text = parts[1]
+                content = parts[2]
+
+                # Parse frontmatter fields
+                for pattern, field_name in [
+                    (self.SLUG_PATTERN, "slug"),
+                    (self.TITLE_PATTERN, "title"),
+                    (self.TYPE_PATTERN, "type"),
+                    (self.SHA256_PATTERN, "sha256"),
+                    (self.CREATED_PATTERN, "created"),
+                    (self.UPDATED_PATTERN, "updated"),
+                ]:
+                    match = pattern.search(frontmatter_text)
+                    if match:
+                        frontmatter[field_name] = match.group(1).strip()
+
+                # Parse tags
+                tags_match = self.TAGS_PATTERN.search(frontmatter_text)
+                if tags_match:
+                    frontmatter["tags"] = [
+                        t.strip() for t in tags_match.group(1).split(",")
+                    ]
+
+                # Parse sources
+                sources_match = self.SOURCES_PATTERN.search(frontmatter_text)
+                if sources_match:
+                    frontmatter["sources"] = [
+                        s.strip() for s in sources_match.group(1).split(",")
+                    ]
+
+        slug = frontmatter.get("slug", file_path.stem)
+        title = frontmatter.get("title", slug.replace("-", " ").title())
+        page_type = frontmatter.get("type", "concept")
+
+        return PageMeta(
+            slug=slug,
+            title=title,
+            description="",
+            type=page_type,
+            tags=frontmatter.get("tags", []),
+            sources=frontmatter.get("sources", []),
+            sha256=frontmatter.get("sha256", ""),
+            created=frontmatter.get("created", ""),
+            updated=frontmatter.get("updated", ""),
+            path=file_path,
+            content=content,
+            raw_content=raw_content,
+        )
+
+    def _find_page_file(self, slug: str) -> Optional[Path]:
+        """Find the file for a given slug.
 
         Args:
             slug: Page slug
-            title: Page title
-            description: Page description
-            page_type: Page type
-            tags: List of tags
-            content: Page content
-            sha256: SHA256 hash
-        """
-        tags_json = json.dumps(tags or [])
-
-        with self.get_session() as session:
-            # Try to update
-            session.execute(text("""
-                UPDATE pages SET
-                    title = :title,
-                    description = :description,
-                    type = :type,
-                    tags = :tags,
-                    content = :content,
-                    sha256 = :sha256,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE slug = :slug
-            """), {
-                "slug": slug,
-                "title": title,
-                "description": description,
-                "type": page_type,
-                "tags": tags_json,
-                "content": content,
-                "sha256": sha256,
-            })
-
-            # If no rows updated, insert
-            if session.execute(text("SELECT changes()")).fetchone()[0] == 0:
-                session.execute(text("""
-                    INSERT INTO pages (slug, title, description, type, tags, content, sha256)
-                    VALUES (:slug, :title, :description, :type, :tags, :content, :sha256)
-                """), {
-                    "slug": slug,
-                    "title": title,
-                    "description": description,
-                    "type": page_type,
-                    "tags": tags_json,
-                    "content": content,
-                    "sha256": sha256,
-                })
-
-    def search_pages(self, query: str, limit: int = 10) -> list[dict]:
-        """Search pages by title or description.
-
-        Args:
-            query: Search query
-            limit: Maximum results
 
         Returns:
-            List of page dictionaries
+            Path to the file, or None
         """
-        with self.get_session() as session:
-            result = session.execute(text("""
-                SELECT slug, title, description, type, tags
-                FROM pages
-                WHERE title LIKE :query OR description LIKE :query
-                LIMIT :limit
-            """), {
-                "query": f"%{query}%",
-                "limit": limit,
-            })
+        # Search in wiki subdirectories
+        if not self.wiki_dir.exists():
+            return None
 
-            return [
-                {
-                    "slug": row[0],
-                    "title": row[1],
-                    "description": row[2],
-                    "type": row[3],
-                    "tags": json.loads(row[4]) if row[4] else [],
-                }
-                for row in result
-            ]
+        for md_file in self.wiki_dir.rglob("*.md"):
+            if md_file.name in ("index.md", "SCHEMA.md"):
+                continue
 
-    def close(self) -> None:
-        """Close database connection."""
-        if self.engine:
-            self.engine.dispose()
-            logger.info("Database connection closed")
+            # Check if filename matches slug
+            if md_file.stem == slug:
+                return md_file
+
+            # Check if frontmatter slug matches
+            try:
+                raw = md_file.read_text(encoding="utf-8")
+                match = self.SLUG_PATTERN.search(raw)
+                if match and match.group(1) == slug:
+                    return md_file
+            except Exception:
+                continue
+
+        return None
+
+    def list_wiki_pages(self, category: Optional[str] = None) -> list[PageMeta]:
+        """List all wiki pages.
+
+        Args:
+            category: Optional category filter (concepts, comparisons, etc.)
+
+        Returns:
+            List of PageMeta for all pages
+        """
+        pages = []
+
+        if not self.wiki_dir.exists():
+            return pages
+
+        search_dirs = [self.wiki_dir]
+        if category:
+            category_path = self.wiki_dir / category
+            if category_path.exists():
+                search_dirs = [category_path]
+
+        for md_file in search_dirs:
+            for file in md_file.rglob("*.md"):
+                if file.name in ("index.md", "SCHEMA.md"):
+                    continue
+                try:
+                    page = self._parse_page(file)
+                    pages.append(page)
+                except Exception as e:
+                    logger.error("Error parsing %s: %s", file, e)
+
+        logger.info("Listed %d wiki pages", len(pages))
+        return pages
+
+    def list_raw_articles(self) -> list[Path]:
+        """List all raw articles.
+
+        Returns:
+            List of paths to raw article files
+        """
+        articles = []
+
+        if not self.raw_dir.exists():
+            return articles
+
+        for md_file in self.raw_dir.rglob("*.md"):
+            articles.append(md_file)
+
+        logger.info("Listed %d raw articles", len(articles))
+        return articles
+
+    def write_page(self, page: PageMeta) -> Path:
+        """Write a wiki page.
+
+        Args:
+            page: PageMeta with content to write
+
+        Returns:
+            Path to the written file
+        """
+        # Determine category directory
+        category = page.type
+        category_dir = self.wiki_dir / category
+
+        # Generate filename
+        filename = f"{page.slug}.md"
+        file_path = category_dir / filename
+
+        # Create directory if needed
+        category_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate frontmatter
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        lines = [
+            "---",
+            f"title: {page.title}",
+            f"slug: {page.slug}",
+            f"type: {page.type}",
+            f"tags: [{', '.join(page.tags)}]",
+            f"created: {page.created or now}",
+            f"updated: {now}",
+        ]
+
+        if page.sources:
+            lines.append(f"sources: [{', '.join(page.sources)}]")
+
+        lines.append("---")
+
+        # Write file
+        content = "\n".join(lines) + "\n\n" + page.content
+        file_path.write_text(content, encoding="utf-8")
+
+        logger.info("Wrote page: %s -> %s", page.slug, file_path)
+        return file_path
+
+    def delete_page(self, slug: str) -> bool:
+        """Delete a wiki page.
+
+        Args:
+            slug: Page slug to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        file_path = self._find_page_file(slug)
+        if not file_path:
+            logger.warning("Page not found for deletion: %s", slug)
+            return False
+
+        file_path.unlink()
+        logger.info("Deleted page: %s -> %s", slug, file_path)
+
+        # Update index
+        self._remove_from_index(slug)
+
+        return True
+
+    def update_index(self) -> None:
+        """Rebuild the wiki index from all pages.
+
+        This scans all wiki pages and updates index.md.
+        """
+        if not self.wiki_dir.exists():
+            logger.warning("Wiki directory not found: %s", self.wiki_dir)
+            return
+
+        entries = []
+
+        for md_file in self.wiki_dir.rglob("*.md"):
+            if md_file.name in ("index.md", "SCHEMA.md"):
+                continue
+
+            try:
+                raw = md_file.read_text(encoding="utf-8")
+                slug_match = self.SLUG_PATTERN.search(raw)
+                title_match = self.TITLE_PATTERN.search(raw)
+
+                if slug_match:
+                    slug = slug_match.group(1)
+                    title = title_match.group(1).strip() if title_match else slug
+                    rel_path = str(md_file.relative_to(self.wiki_root))
+                    entries.append((slug, rel_path, title))
+            except Exception as e:
+                logger.error("Error reading %s: %s", md_file, e)
+
+        # Sort by slug
+        entries.sort(key=lambda x: x[0])
+
+        # Write index
+        lines = ["# LLM-Wiki Index", ""]
+        for slug, path, title in entries:
+            lines.append(f"### {slug} [{path}] {title}")
+
+        lines.append("")
+        self.index_path.parent.mkdir(parents=True, exist_ok=True)
+        self.index_path.write_text("\n".join(lines), encoding="utf-8")
+
+        logger.info("Updated index with %d entries", len(entries))
+
+    def _remove_from_index(self, slug: str) -> None:
+        """Remove a page entry from index.md.
+
+        Args:
+            slug: Page slug to remove
+        """
+        if not self.index_path.exists():
+            return
+
+        text = self.index_path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        filtered = [
+            line for line in lines
+            if not self.INDEX_ENTRY_PATTERN.match(line.strip())
+            or self.INDEX_ENTRY_PATTERN.match(line.strip()).group(1) != slug
+        ]
+
+        self.index_path.write_text("\n".join(filtered), encoding="utf-8")
+        logger.info("Removed %s from index", slug)
+
+    def get_page_count(self) -> int:
+        """Get the total number of wiki pages.
+
+        Returns:
+            Number of wiki pages
+        """
+        if not self.wiki_dir.exists():
+            return 0
+
+        count = sum(1 for _ in self.wiki_dir.rglob("*.md"))
+        # Subtract index.md and SCHEMA.md
+        count -= 2
+        return max(0, count)
