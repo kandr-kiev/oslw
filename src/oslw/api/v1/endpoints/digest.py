@@ -1,13 +1,24 @@
-"""Digest endpoints."""
+"""Digest endpoints — newspaper digest generation.
 
-from fastapi import APIRouter, HTTPException, Query
+Uses DigestService from Application Layer.
+"""
+
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional
 
 from oslw.api.v1.schemas import DigestResponse
+from oslw.api.deps import get_settings
+from oslw.config.settings import Settings
+from oslw.application import DigestService
 from oslw.config.logging import get_logger
 
 router = APIRouter(tags=["digest"])
 logger = get_logger("api.digest")
+
+
+def get_digest_service(settings: Settings = Depends(get_settings)) -> DigestService:
+    """Dependency injection for DigestService."""
+    return DigestService(wiki_root=settings.wiki_root)
 
 
 @router.get(
@@ -18,14 +29,30 @@ logger = get_logger("api.digest")
 )
 async def get_today_digest(
     hours: int = Query(24, ge=1, le=168, description="Hours to look back"),
+    digest_service: DigestService = Depends(get_digest_service),
 ) -> DigestResponse:
     """Get today's newspaper digest."""
-    # TODO: Implement digest generation
-    logger.info("Generating digest for last %d hours", hours)
-    raise HTTPException(
-        status_code=501,
-        detail="Not implemented - domain layer in progress",
-    )
+    try:
+        summary = await digest_service.get_digest_summary(hours=hours)
+        entries = await digest_service.get_recent_entries(limit=100, hours=hours)
+
+        return DigestResponse(
+            date=summary.generated_at,
+            total_articles=summary.total_entries,
+            articles=[
+                {
+                    "title": e.page,
+                    "slug": e.page.replace(" ", "-"),
+                    "summary": e.description or "",
+                    "created": e.timestamp,
+                    "tags": [],
+                }
+                for e in entries
+            ],
+        )
+    except Exception as e:
+        logger.error("Error generating digest: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post(
@@ -34,11 +61,29 @@ async def get_today_digest(
     summary="Generate digest",
     description="Generate a digest for specified period",
 )
-async def generate_digest(hours: int = Query(24, ge=1, le=168)) -> DigestResponse:
+async def generate_digest(
+    hours: int = Query(24, ge=1, le=168),
+    digest_service: DigestService = Depends(get_digest_service),
+) -> DigestResponse:
     """Generate a digest."""
-    # TODO: Implement digest generation
-    logger.info("Generating digest for last %d hours", hours)
-    raise HTTPException(
-        status_code=501,
-        detail="Not implemented - domain layer in progress",
-    )
+    try:
+        summary = await digest_service.get_digest_summary(hours=hours)
+        entries = await digest_service.get_recent_entries(limit=100, hours=hours)
+
+        return DigestResponse(
+            date=summary.generated_at,
+            total_articles=summary.total_entries,
+            articles=[
+                {
+                    "title": e.page,
+                    "slug": e.page.replace(" ", "-"),
+                    "summary": e.description or "",
+                    "created": e.timestamp,
+                    "tags": [],
+                }
+                for e in entries
+            ],
+        )
+    except Exception as e:
+        logger.error("Error generating digest: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
