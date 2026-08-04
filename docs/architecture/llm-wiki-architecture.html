@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Wiki — System Architecture v2.0.0</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 1.5rem;
+      color: #e2e8f0;
+    }
+    .container { max-width: 1600px; margin: 0 auto; }
+
+    /* ─── Header ─── */
+    .header { margin-bottom: 1.5rem; }
+    .header-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.375rem; }
+    .pulse-dot { width: 10px; height: 10px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.8rem; margin-left: 1.5rem; }
+    .version-badge {
+      display: inline-block; background: rgba(6,182,212,0.2); border: 1px solid rgba(6,182,212,0.4);
+      color: #06b6d4; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; margin-left: 0.75rem;
+    }
+    .stats-bar { display: flex; gap: 1.5rem; margin-left: 1.5rem; margin-top: 0.5rem; flex-wrap: wrap; }
+    .stat-item { display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: #94a3b8; }
+    .stat-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .stat-num { color: #e2e8f0; font-weight: 600; }
+
+    /* ─── Main Layout ─── */
+    .diagram-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; }
+    .main-flow { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    /* ─── Layer Containers ─── */
+    .layer { border-radius: 0.75rem; padding: 1rem; position: relative; }
+    .layer-title { font-size: 0.8rem; font-weight: 700; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .layer-subtitle { font-size: 0.7rem; color: #94a3b8; margin-top: 0.125rem; }
+
+    /* ─── Layer 0: Source Monitor ─── */
+    .layer-source { background: rgba(21, 101, 192, 0.06); border: 1.5px dashed #3b82f6; }
+    .layer-source .layer-title { color: #3b82f6; }
+    .source-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; }
+    .source-item { background: rgba(21, 101, 192, 0.2); border: 1px solid #3b82f6; border-radius: 0.5rem; padding: 0.625rem; text-align: center; }
+    .source-name { font-size: 0.75rem; font-weight: 600; color: #fff; }
+    .source-detail { font-size: 0.65rem; color: #94a3b8; margin-top: 0.125rem; }
+    .source-count { font-size: 0.7rem; font-weight: 700; color: #3b82f6; margin-top: 0.25rem; }
+
+    /* ─── Layer 1: Raw Sources ─── */
+    .layer-raw { background: rgba(120, 53, 15, 0.06); border: 1.5px dashed #fbbf24; }
+    .layer-raw .layer-title { color: #fbbf24; }
+    .raw-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; }
+    .raw-item { background: rgba(120, 53, 15, 0.2); border: 1px solid #fbbf24; border-radius: 0.5rem; padding: 0.625rem; text-align: center; }
+    .raw-item.ext { background: rgba(30, 41, 59, 0.4); border-color: #94a3b8; }
+    .raw-item.cron { background: rgba(21, 94, 117, 0.2); border-color: #06b6d4; }
+    .raw-item.transcript { background: rgba(168, 85, 247, 0.15); border-color: #a855f7; }
+    .raw-name { font-size: 0.75rem; font-weight: 600; color: #fff; }
+    .raw-path { font-size: 0.65rem; color: #94a3b8; margin-top: 0.125rem; }
+    .raw-count { font-size: 0.7rem; font-weight: 700; color: #fbbf24; margin-top: 0.25rem; }
+    .raw-item.ext .raw-count { color: #94a3b8; }
+    .raw-item.cron .raw-count { color: #06b6d4; }
+    .raw-item.transcript .raw-count { color: #a855f7; }
+
+    /* ─── Integrator ─── */
+    .integrator { background: rgba(120, 53, 15, 0.25); border: 1.5px solid #fbbf24; border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem; }
+    .integrator-name { font-size: 0.8rem; font-weight: 700; color: #fff; }
+    .integrator-desc { font-size: 0.65rem; color: #94a3b8; }
+    .integrator-tags { display: flex; gap: 0.375rem; flex-wrap: wrap; margin-top: 0.25rem; }
+    .integrator-tag { font-size: 0.6rem; color: #fbbf24; background: rgba(251, 191, 36, 0.15); padding: 0.125rem 0.375rem; border-radius: 0.25rem; }
+
+    /* ─── Layer 2: Wiki ─── */
+    .layer-wiki { background: rgba(6, 78, 59, 0.06); border: 1.5px dashed #34d399; }
+    .layer-wiki .layer-title { color: #34d399; }
+    .wiki-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem; }
+    .wiki-item { background: rgba(6, 78, 59, 0.2); border: 1px solid #34d399; border-radius: 0.5rem; padding: 0.625rem; text-align: center; }
+    .wiki-item.comparison { background: rgba(236, 72, 153, 0.15); border-color: #fb7185; }
+    .wiki-item.comparison .wiki-count { color: #fb7185; }
+    .wiki-item.synthesis { background: rgba(76, 29, 149, 0.2); border-color: #a78bfa; }
+    .wiki-item.synthesis .wiki-count { color: #a78bfa; }
+    .wiki-item.index { background: rgba(8, 51, 68, 0.2); border-color: #22d3ee; }
+    .wiki-item.index .wiki-count { color: #22d3ee; }
+    .wiki-item.log { background: rgba(76, 29, 149, 0.2); border-color: #a78bfa; }
+    .wiki-item.log .wiki-count { color: #a78bfa; }
+    .wiki-item.transcript { background: rgba(168, 85, 247, 0.15); border-color: #a855f7; }
+    .wiki-item.transcript .wiki-count { color: #a855f7; }
+    .wiki-name { font-size: 0.75rem; font-weight: 600; color: #fff; }
+    .wiki-path { font-size: 0.65rem; color: #94a3b8; margin-top: 0.125rem; }
+    .wiki-count { font-size: 0.7rem; font-weight: 700; color: #34d399; margin-top: 0.25rem; }
+
+    /* ─── Connection Arrows ─── */
+    .conn { padding: 0.375rem 0.625rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 0.375rem; font-size: 0.65rem; font-weight: 600; line-height: 1.4; text-align: center; }
+    .conn-label { font-size: 0.55rem; color: #94a3b8; font-weight: 400; display: block; margin-top: 0.125rem; }
+    .conn.amber { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); color: #fbbf24; }
+    .conn.violet { background: rgba(167, 139, 250, 0.1); border: 1px solid rgba(167, 139, 250, 0.3); color: #a78bfa; }
+    .conn.emerald { background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); color: #34d399; }
+    .conn.rose { background: rgba(251, 113, 133, 0.1); border: 1px solid rgba(251, 113, 133, 0.3); color: #fb7185; }
+    .conn.cyan { background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); color: #06b6d4; }
+    .conn.gray { background: rgba(100, 116, 139, 0.1); border: 1px solid rgba(100, 116, 139, 0.3); color: #94a3b8; }
+    .conn.blue { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); color: #3b82f6; }
+
+    /* ─── Wiki Doctor ─── */
+    .layer-doctor { background: rgba(251, 113, 133, 0.06); border: 1.5px dashed #fb7185; }
+    .layer-doctor .layer-title { color: #fb7185; }
+    .doctor-layers { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem; }
+    .doctor-item { background: rgba(251, 113, 133, 0.15); border: 1px solid #fb7185; border-radius: 0.5rem; padding: 0.625rem; text-align: center; }
+    .doctor-name { font-size: 0.75rem; font-weight: 600; color: #fff; }
+    .doctor-desc { font-size: 0.6rem; color: #94a3b8; margin-top: 0.125rem; }
+
+    /* ─── Graphify ─── */
+    .layer-graph { background: rgba(76, 29, 149, 0.06); border: 1.5px dashed #a78bfa; }
+    .layer-graph .layer-title { color: #a78bfa; }
+    .graph-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; }
+    .graph-item { background: rgba(76, 29, 149, 0.2); border: 1px solid #a78bfa; border-radius: 0.5rem; padding: 0.625rem; text-align: center; }
+    .graph-name { font-size: 0.75rem; font-weight: 600; color: #fff; }
+    .graph-detail { font-size: 0.65rem; color: #94a3b8; margin-top: 0.125rem; }
+    .graph-count { font-size: 0.7rem; font-weight: 700; color: #a78bfa; margin-top: 0.25rem; }
+
+    /* ─── Daily Sync ─── */
+    .layer-sync { background: rgba(21, 101, 192, 0.06); border: 1.5px dashed #3b82f6; }
+    .layer-sync .layer-title { color: #3b82f6; }
+    .sync-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.5rem; }
+    .sync-item { background: rgba(21, 101, 192, 0.15); border: 1px solid #3b82f6; border-radius: 0.5rem; padding: 0.625rem; }
+    .sync-name { font-size: 0.75rem; font-weight: 600; color: #fff; }
+    .sync-detail { font-size: 0.6rem; color: #94a3b8; margin-top: 0.125rem; }
+    .sync-delivery { font-size: 0.65rem; color: #3b82f6; margin-top: 0.25rem; font-weight: 600; }
+
+    /* ─── Tools & Cron ─── */
+    .layer-tools { background: rgba(21, 94, 117, 0.06); border: 1.5px dashed #06b6d4; }
+    .layer-tools .layer-title { color: #06b6d4; }
+    .tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.375rem; margin-bottom: 0.75rem; }
+    .tool-item { background: rgba(6, 78, 59, 0.2); border: 1px solid #34d399; border-radius: 0.375rem; padding: 0.5rem; text-align: center; font-size: 0.6rem; font-weight: 600; color: #fff; display: flex; flex-direction: column; gap: 0.2rem; min-height: 60px; justify-content: center; }
+    .tool-name { font-weight: 700; }
+    .tool-desc { font-size: 0.5rem; font-weight: 400; color: #94a3b8; line-height: 1.3; }
+    .cron-map { display: flex; flex-direction: column; gap: 0.375rem; margin-top: 0.5rem; }
+    .cron-map-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.625rem; background: rgba(21, 94, 117, 0.15); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 0.375rem; font-size: 0.65rem; }
+    .cron-map-job { font-weight: 700; color: #fff; min-width: 130px; flex-shrink: 0; }
+    .cron-map-arrow { color: #06b6d4; font-size: 0.75rem; flex-shrink: 0; }
+    .cron-map-target { color: #fbbf24; font-weight: 600; }
+    .cron-map-detail { color: #94a3b8; font-size: 0.55rem; margin-left: auto; flex-shrink: 0; }
+
+    /* ─── Layer 3: Schema ─── */
+    .layer-schema { background: rgba(76, 29, 149, 0.06); border: 1.5px dashed #a78bfa; }
+    .layer-schema .layer-title { color: #a78bfa; }
+    .schema-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; }
+    .schema-item { background: rgba(76, 29, 149, 0.2); border: 1px solid #a78bfa; border-radius: 0.5rem; padding: 0.625rem; text-align: center; }
+    .schema-item.future { background: rgba(30, 41, 59, 0.3); border-color: #94a3b8; border-style: dashed; }
+    .schema-name { font-size: 0.75rem; font-weight: 600; color: #fff; }
+    .schema-desc { font-size: 0.6rem; color: #94a3b8; margin-top: 0.125rem; line-height: 1.4; }
+    .schema-tag { font-size: 0.55rem; color: #a78bfa; margin-top: 0.25rem; }
+
+    /* ─── Sidebar ─── */
+    .sidebar { display: flex; flex-direction: column; gap: 0.75rem; }
+    .obsidian-panel { background: rgba(168, 85, 247, 0.06); border: 1.5px solid #a855f7; border-radius: 0.75rem; padding: 1rem; }
+    .obsidian-title { font-size: 0.8rem; font-weight: 700; color: #a855f7; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .obsidian-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.375rem; }
+    .obsidian-item { background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 0.375rem; padding: 0.5rem; text-align: center; }
+    .obsidian-name { font-size: 0.65rem; font-weight: 600; color: #fff; }
+    .obsidian-desc { font-size: 0.55rem; color: #94a3b8; margin-top: 0.125rem; }
+
+    /* ─── Cards Row ─── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+    .card { background: rgba(15, 23, 42, 0.5); border-radius: 0.5rem; border: 1px solid #1e293b; padding: 0.875rem; }
+    .card-header { display: flex; align-items: center; gap: 0.375rem; margin-bottom: 0.5rem; }
+    .card-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .card h3 { font-size: 0.75rem; font-weight: 600; }
+    .card ul { list-style: none; font-size: 0.65rem; color: #94a3b8; }
+    .card li { margin-bottom: 0.25rem; }
+
+    /* ─── Stats Cards Row ─── */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .stat-card { background: rgba(15, 23, 42, 0.5); border: 1px solid #1e293b; border-radius: 0.75rem; padding: 1rem; text-align: center; transition: all 0.3s ease; }
+    .stat-card:hover { border-color: #58a6ff; transform: translateY(-2px); }
+    .stat-value { font-size: 1.8em; font-weight: 700; background: linear-gradient(90deg, #58a6ff, #bc8cff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { color: #94a3b8; font-size: 0.7rem; margin-top: 4px; }
+
+    /* ─── Footer ─── */
+    .footer { text-align: center; margin-top: 1.25rem; color: #475569; font-size: 0.65rem; }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 1200px) { .diagram-grid { grid-template-columns: 1fr; } .sidebar { order: -1; } }
+    @media (max-width: 768px) {
+      body { padding: 0.75rem; }
+      .raw-grid, .wiki-grid, .tools-grid, .schema-grid, .source-grid { grid-template-columns: repeat(2, 1fr); }
+      .cron-map-row { flex-direction: column; text-align: center; gap: 0.25rem; }
+      .cron-map-detail { margin-left: 0; }
+      h1 { font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>🏛️ LLM Wiki — System Architecture <span class="version-badge">v2.0.0</span></h1>
+      </div>
+      <p class="subtitle">OOP Refactor + Universal Integrator + YouTube Integration • 6-layer pipeline</p>
+      <div class="stats-bar">
+        <span class="stat-item"><span class="stat-dot" style="background:#3b82f6"></span> <span class="stat-num">5</span> data sources</span>
+        <span class="stat-item"><span class="stat-dot" style="background:#fbbf24"></span> <span class="stat-num">2,581</span> raw files</span>
+        <span class="stat-item"><span class="stat-dot" style="background:#34d399"></span> <span class="stat-num">3,441</span> wiki pages</span>
+        <span class="stat-item"><span class="stat-dot" style="background:#06b6d4"></span> <span class="stat-num">20</span> tools</span>
+        <span class="stat-item"><span class="stat-dot" style="background:#34d399"></span> <span class="stat-num">472</span> tests (100%)</span>
+        <span class="stat-item"><span class="stat-dot" style="background:#06b6d4"></span> <span class="stat-num">6</span> cron jobs</span>
+        <span class="stat-item"><span class="stat-dot" style="background:#a78bfa"></span> <span class="stat-num">1,365</span> graph nodes</span>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-value">3,441</div><div class="stat-label">Wiki Pages</div></div>
+      <div class="stat-card"><div class="stat-value">2,581</div><div class="stat-label">Raw Sources</div></div>
+      <div class="stat-card"><div class="stat-value">472</div><div class="stat-label">Tests (100%)</div></div>
+      <div class="stat-card"><div class="stat-value">20</div><div class="stat-label">Tools</div></div>
+      <div class="stat-card"><div class="stat-value">1,365</div><div class="stat-label">Graph Nodes</div></div>
+      <div class="stat-card"><div class="stat-value">6,289</div><div class="stat-label">Graph Edges</div></div>
+      <div class="stat-card"><div class="stat-value">287</div><div class="stat-label">Tags</div></div>
+      <div class="stat-card"><div class="stat-value">6</div><div class="stat-label">Cron Jobs</div></div>
+    </div>
+
+    <!-- Main Grid: Flow + Sidebar -->
+    <div class="diagram-grid">
+      <!-- Main Flow -->
+      <div class="main-flow">
+
+        <!-- LAYER 0: Source Monitor -->
+        <div class="layer layer-source">
+          <div class="layer-title"><span>▣</span> LAYER 0 — SOURCE MONITOR (every 6h)</div>
+          <div class="layer-subtitle">Data collection from all external sources → raw/ (immutable)</div>
+          <div class="source-grid" style="margin-top:0.75rem">
+            <div class="source-item"><div class="source-name">📰 RSS Feeds</div><div class="source-detail">News, blogs, feeds</div><div class="source-count">28+ feeds</div></div>
+            <div class="source-item"><div class="source-name">🐙 GitHub</div><div class="source-detail">Releases, repos, tags</div><div class="source-count">15 REPOS</div></div>
+            <div class="source-item"><div class="source-name">💻 Local Files</div><div class="source-detail">Local directory scan</div><div class="source-count">8 dirs</div></div>
+            <div class="source-item"><div class="source-name">🤗 HuggingFace</div><div class="source-detail">Models, datasets</div><div class="source-count">15 models</div></div>
+            <div class="source-item"><div class="source-name">▶️ YouTube</div><div class="source-detail">Video transcripts</div><div class="source-count">1 channel</div></div>
+          </div>
+        </div>
+
+        <!-- Connection 0: Source Monitor → raw/ -->
+        <div class="conn blue">
+          <span>All sources →</span><span>raw/ (immutable, append-only)</span>
+          <span class="conn-label">SHA256 stored on ingest • Never modified</span>
+        </div>
+
+        <!-- LAYER 1: Raw Sources -->
+        <div class="layer layer-raw">
+          <div class="layer-title"><span>▣</span> LAYER 1 — RAW SOURCES (Immutable)</div>
+          <div class="layer-subtitle">External sources preserved as immutable evidence. Auto-detected subdirectories.</div>
+          <div class="raw-grid" style="margin-top:0.75rem">
+            <div class="raw-item"><div class="raw-name">📄 Raw Articles</div><div class="raw-path">raw/articles/</div><div class="raw-count">2,579 files</div></div>
+            <div class="raw-item"><div class="raw-name">📑 Raw Papers</div><div class="raw-path">raw/papers/</div><div class="raw-count">papers</div></div>
+            <div class="raw-item transcript"><div class="raw-name">🎙️ Raw Transcripts</div><div class="raw-path">raw/transcripts/</div><div class="raw-count">├─ youtube/</div></div>
+            <div class="raw-item transcript"><div class="raw-name">💬 Raw Chat</div><div class="raw-path">raw/transcripts/chats/</div><div class="raw-count">Google Chat</div></div>
+            <div class="raw-item transcript"><div class="raw-name">🎧 Raw Podcasts</div><div class="raw-path">raw/transcripts/podcasts/</div><div class="raw-count">Podcast audio</div></div>
+            <div class="raw-item ext"><div class="raw-name">📎 Raw Assets</div><div class="raw-path">raw/assets/</div><div class="raw-count">⏭ skipped</div></div>
+            <div class="raw-item ext"><div class="raw-name">⚙️ Raw Configs</div><div class="raw-path">raw/configs/</div><div class="raw-count">⏭ skipped</div></div>
+          </div>
+        </div>
+
+        <!-- Connection 1: Raw → Integrator -->
+        <div class="conn amber">
+          <span>raw/ (all subdirs) →</span><span>integrator.py</span>
+          <span class="conn-label">Universal scanner: auto-detects new subdirectories → processes automatically</span>
+        </div>
+
+        <!-- Integrator -->
+        <div class="integrator">
+          <div>
+            <div class="integrator-name">⚙️ integrator.py (every 12h)</div>
+            <div class="integrator-desc">_scan_all_raw() → classify type → synthesize wiki → write page → update index.md → append log</div>
+            <div class="integrator-tags">
+              <span class="integrator-tag">Universal scanning</span>
+              <span class="integrator-tag">Auto-detect subdirs</span>
+              <span class="integrator-tag">wikilinks</span>
+              <span class="integrator-tag">frontmatter</span>
+              <span class="integrator-tag">write + log</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection 2: Integrator → wiki/ -->
+        <div class="conn emerald">
+          <span>integrator.py →</span><span>wiki/concepts/ wiki/entities/ wiki/research/ wiki/transcripts/</span>
+          <span class="conn-label">Creation/update of pages with frontmatter + wikilinks</span>
+        </div>
+
+        <!-- LAYER 2: Wiki Pages -->
+        <div class="layer layer-wiki">
+          <div class="layer-title"><span>▣</span> LAYER 2 — WIKI PAGES (Synthesized Knowledge)</div>
+          <div class="layer-subtitle">Mutable, cross-linked, agent-maintained knowledge base. Open Knowledge Format v0.1.</div>
+          <div class="wiki-grid" style="margin-top:0.75rem">
+            <div class="wiki-item"><div class="wiki-name">🧠 Concept</div><div class="wiki-path">wiki/concepts/</div><div class="wiki-count">concepts</div></div>
+            <div class="wiki-item"><div class="wiki-name">🏢 Entity</div><div class="wiki-path">wiki/entities/</div><div class="wiki-count">companies, products</div></div>
+            <div class="wiki-item comparison"><div class="wiki-name">⚖️ Comparison</div><div class="wiki-path">wiki/comparisons/</div><div class="wiki-count">A vs B analyses</div></div>
+            <div class="wiki-item"><div class="wiki-name">📋 Playbook</div><div class="wiki-path">wiki/playbooks/</div><div class="wiki-count">Guides & tutorials</div></div>
+            <div class="wiki-item"><div class="wiki-name">❓ Query</div><div class="wiki-path">wiki/queries/</div><div class="wiki-count">Reference queries</div></div>
+            <div class="wiki-item"><div class="wiki-name">📚 Reference</div><div class="wiki-path">wiki/references/</div><div class="wiki-count">Reference materials</div></div>
+            <div class="wiki-item"><div class="wiki-name">🔬 Research</div><div class="wiki-path">wiki/research/</div><div class="wiki-count">Research papers</div></div>
+            <div class="wiki-item synthesis"><div class="wiki-name">🔮 Synthesis</div><div class="wiki-path">wiki/synthesis/</div><div class="wiki-count">Synthesized knowledge</div></div>
+            <div class="wiki-item transcript"><div class="wiki-name">🎙️ Transcripts</div><div class="wiki-path">wiki/transcripts/</div><div class="wiki-count">├─ youtube/</div></div>
+            <div class="wiki-item"><div class="wiki-name">📇 Index</div><div class="wiki-path">wiki/index.md</div><div class="wiki-count">40KB catalog</div></div>
+            <div class="wiki-item"><div class="wiki-name">📝 Template</div><div class="wiki-path">wiki/templates/</div><div class="wiki-count">Page templates</div></div>
+          </div>
+        </div>
+
+        <!-- Connection 3: Wiki → Wiki Doctor -->
+        <div class="conn rose">
+          <span>wiki/**/*.md →</span><span>wiki_doctor.py</span>
+          <span class="conn-label">6 diagnostic layers + 7 cure operations → auto-repair</span>
+        </div>
+
+        <!-- LAYER 2.5: Wiki Doctor -->
+        <div class="layer layer-doctor">
+          <div class="layer-title"><span>▣</span> LAYER 2.5 — WIKI DOCTOR (every 12h)</div>
+          <div class="layer-subtitle">6 diagnostic layers + 7 cure operations for wiki health</div>
+          <div class="doctor-layers" style="margin-top:0.75rem">
+            <div class="doctor-item"><div class="doctor-name">📄 Layer 1</div><div class="doctor-desc">Wiki Pages (frontmatter, fields, wikilinks)</div></div>
+            <div class="doctor-item"><div class="doctor-name">🔐 Layer 2</div><div class="doctor-desc">Raw Sources (SHA256 integrity)</div></div>
+            <div class="doctor-item"><div class="doctor-name">📑 Layer 3</div><div class="doctor-desc">Index.md (sections, duplicates)</div></div>
+            <div class="doctor-item"><div class="doctor-name">🏗️ Layer 4</div><div class="doctor-desc">Infrastructure (orphaned files, duplicates)</div></div>
+            <div class="doctor-item"><div class="doctor-name">⚙️ Layer 5</div><div class="doctor-desc">Integrator (pipeline health)</div></div>
+            <div class="doctor-item"><div class="doctor-name">📐 Layer 6</div><div class="doctor-desc">Config/SCHEMA.md (tag taxonomy)</div></div>
+          </div>
+        </div>
+
+        <!-- Connection 4: Wiki → Graphify -->
+        <div class="conn violet">
+          <span>wiki/**/*.md →</span><span>graphify_bridge.py</span>
+          <span class="conn-label">Extract wikilinks → graph-from-wiki.json (nodes, edges, communities)</span>
+        </div>
+
+        <!-- LAYER 3: Graph -->
+        <div class="layer layer-graph">
+          <div class="layer-title"><span>▣</span> LAYER 3 — GRAPH (10:00 daily)</div>
+          <div class="layer-subtitle">Conceptual graph derived from wiki wikilinks for semantic search</div>
+          <div class="graph-grid" style="margin-top:0.75rem">
+            <div class="graph-item"><div class="graph-name">📊 graph-from-wiki.json</div><div class="graph-detail">Conceptual graph</div><div class="graph-count">1,365 nodes</div></div>
+            <div class="graph-item"><div class="graph-name">🔗 Wikilinks</div><div class="graph-detail">Cross-references</div><div class="graph-count">6,289 edges</div></div>
+            <div class="graph-item"><div class="graph-name">📦 Communities</div><div class="graph-detail">Topic clusters</div><div class="graph-count">16 clusters</div></div>
+            <div class="graph-item"><div class="graph-name">🏷️ Tags</div><div class="graph-detail">Taxonomy</div><div class="graph-count">287 tags</div></div>
+          </div>
+        </div>
+
+        <!-- Connection 5: Graph → Daily Sync -->
+        <div class="conn cyan">
+          <span>graph + wiki →</span><span>Daily Sync (09:00 daily)</span>
+          <span class="conn-label">Telegram digest + Git documentation sync</span>
+        </div>
+
+        <!-- LAYER 4: Daily Sync -->
+        <div class="layer layer-sync">
+          <div class="layer-title"><span>▣</span> LAYER 4 — DAILY SYNC (09:00 daily)</div>
+          <div class="layer-subtitle">Output delivery & documentation synchronization</div>
+          <div class="sync-grid" style="margin-top:0.75rem">
+            <div class="sync-item">
+              <div class="sync-name">📰 LLM-Wiki Daily Digest</div>
+              <div class="sync-detail">Extractive summarization of wiki changes → formatted digest</div>
+              <div class="sync-delivery">📨 → Telegram</div>
+            </div>
+            <div class="sync-item">
+              <div class="sync-name">📝 Daily Docs Sync</div>
+              <div class="sync-detail">Git commit: wiki maintenance + documentation updates</div>
+              <div class="sync-delivery">🔀 → Git push</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection 6: Cron → Tools Mapping -->
+        <div class="conn cyan">
+          <span>⏰ Cron Jobs → Tools (scheduled execution)</span>
+          <span class="conn-label">6 cron jobs trigger specific scripts on schedule</span>
+        </div>
+
+        <!-- TOOLS & CRON -->
+        <div class="layer layer-tools">
+          <div class="layer-title"><span>▣</span> TOOLS & CRON JOBS (Automation Layer)</div>
+          <div class="layer-subtitle">20 OOP-wrapped tools • 6 scheduled jobs • wiki_app/ package</div>
+
+          <!-- Cron → Tool Mapping (6 jobs) -->
+          <div class="cron-map">
+            <div class="cron-map-row"><span class="cron-map-job">Source Monitor</span><span class="cron-map-arrow">→</span><span class="cron-map-target">source_monitor.py</span><span class="cron-map-detail">every 6h → RSS + GitHub + Local + HF + YouTube</span></div>
+            <div class="cron-map-row"><span class="cron-map-job">Wiki Integrator</span><span class="cron-map-arrow">→</span><span class="cron-map-target">integrator.py</span><span class="cron-map-detail">every 12h → universal raw/ → wiki/</span></div>
+            <div class="cron-map-row"><span class="cron-map-job">Wiki Doctor</span><span class="cron-map-arrow">→</span><span class="cron-map-target">wiki_doctor.py</span><span class="cron-map-detail">every 12h → diagnose + auto-cure</span></div>
+            <div class="cron-map-row"><span class="cron-map-job">Graphify Bridge</span><span class="cron-map-arrow">→</span><span class="cron-map-target">graphify_bridge.py</span><span class="cron-map-detail">10:00 daily → wiki → graph.json</span></div>
+            <div class="cron-map-row"><span class="cron-map-job">Daily Digest</span><span class="cron-map-arrow">→</span><span class="cron-map-target">wiki-daily-digest</span><span class="cron-map-detail">09:00 daily → Telegram</span></div>
+            <div class="cron-map-row"><span class="cron-map-job">Docs Sync</span><span class="cron-map-arrow">→</span><span class="cron-map-target">wiki-maintenance</span><span class="cron-map-detail">09:00 daily → git commit</span></div>
+          </div>
+
+          <div class="tools-grid" style="margin-top:0.75rem">
+            <div class="tool-item"><span class="tool-name">📡 source_monitor.py</span><span class="tool-desc">RSS + GitHub + Local + HF + YouTube</span></div>
+            <div class="tool-item"><span class="tool-name">🔄 integrator.py</span><span class="tool-desc">Universal raw/ → wiki/</span></div>
+            <div class="tool-item"><span class="tool-name">🏥 wiki_doctor.py</span><span class="tool-desc">6 layers, 7 cures</span></div>
+            <div class="tool-item"><span class="tool-name">📥 inbox_router.py</span><span class="tool-desc">Telegram routing</span></div>
+            <div class="tool-item"><span class="tool-name">🕸️ graphify_bridge.py</span><span class="tool-desc">wiki → graph.json</span></div>
+            <div class="tool-item"><span class="tool-name">🔎 graphify_query.py</span><span class="tool-desc">BFS/DFS search</span></div>
+            <div class="tool-item"><span class="tool-name">🔗 fix_wikilinks.py</span><span class="tool-desc">Fix broken links</span></div>
+            <div class="tool-item"><span class="tool-name">🔐 fix_sha256.py</span><span class="tool-desc">Fix SHA drift</span></div>
+            <div class="tool-item"><span class="tool-name">🔍 wiki_lint.py</span><span class="tool-desc">Structural linting</span></div>
+            <div class="tool-item"><span class="tool-name">🧹 cleanup_duplicates.py</span><span class="tool-desc">Remove dup pages</span></div>
+            <div class="tool-item"><span class="tool-name">🔀 git_sync.py</span><span class="tool-desc">Git sync</span></div>
+            <div class="tool-item"><span class="tool-name">📊 wiki_graph_generator.py</span><span class="tool-desc">Generate wiki graph</span></div>
+            <div class="tool-item"><span class="tool-name">🐙 github_repos.py</span><span class="tool-desc">REPOS monitoring</span></div>
+            <div class="tool-item"><span class="tool-name">📰 newspaper_digest.py</span><span class="tool-desc">Extractive summarization</span></div>
+            <div class="tool-item"><span class="tool-name">▶️ transcribe_youtube.py</span><span class="tool-desc">YouTube transcript</span></div>
+            <div class="tool-item"><span class="tool-name">💬 transcribe_google_chat.py</span><span class="tool-desc">Chat transcript</span></div>
+            <div class="tool-item"><span class="tool-name">✨ enrich_wikilinks.py</span><span class="tool-desc">Wikilinks enrichment</span></div>
+            <div class="tool-item"><span class="tool-name">🏷️ normalize_tags.py</span><span class="tool-desc">Tag normalization</span></div>
+            <div class="tool-item"><span class="tool-name">🩺 health_check.py</span><span class="tool-desc">System health</span></div>
+            <div class="tool-item"><span class="tool-name">🔀 merge_node_duplicates.py</span><span class="tool-desc">Merge graph nodes</span></div>
+          </div>
+        </div>
+
+        <!-- Connection 7: Wiki → Schema -->
+        <div class="conn violet">
+          <span>wiki/**/*.md</span><span class="conn-label">← maintained by →</span><span>SCHEMA.md (types/tags) • ALGORITHM.md (workflows) • AGENTS.md (contracts)</span>
+        </div>
+
+        <!-- LAYER 3: Schema & Operations -->
+        <div class="layer layer-schema">
+          <div class="layer-title"><span>▣</span> LAYER 3 — SCHEMA & OPERATIONS</div>
+          <div class="layer-subtitle">Structural contracts, navigation, logging, and documentation.</div>
+          <div class="schema-grid" style="margin-top:0.75rem">
+            <div class="schema-item"><div class="schema-name">📐 SCHEMA.md</div><div class="schema-desc">Types, tags, field contracts</div><div class="schema-tag">structural guard</div></div>
+            <div class="schema-item"><div class="schema-name">🤖 AGENTS.md</div><div class="schema-desc">Agent config instructions</div><div class="schema-tag">system prompts</div></div>
+            <div class="schema-item"><div class="schema-name">⚙️ ALGORITHM.md</div><div class="schema-desc">Step-by-step workflows</div><div class="schema-tag">ingest/query/lint</div></div>
+            <div class="schema-item"><div class="schema-name">🏗️ ARCHITECTURE.md</div><div class="schema-desc">Technical architecture</div><div class="schema-tag">design docs</div></div>
+            <div class="schema-item"><div class="schema-name">📁 wiki_app/</div><div class="schema-desc">OOP package (v2.0): core, services, tools, tests</div><div class="schema-tag">41 Python files</div></div>
+            <div class="schema-item"><div class="schema-name">🚫 .gitignore</div><div class="schema-desc">Excludes: .processed/, outputs/, workspace*</div><div class="schema-tag">version control</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar: Obsidian Vault -->
+      <div class="sidebar">
+        <div class="obsidian-panel">
+          <div class="obsidian-title"><span>📓</span> Obsidian Vault</div>
+          <div class="obsidian-grid">
+            <div class="obsidian-item"><div class="obsidian-name">📱 Dataview</div><div class="obsidian-desc">SQL-like queries</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">🔄 Obsidian Git</div><div class="obsidian-desc">Sync with git</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">🎯 Templater</div><div class="obsidian-desc">Auto-create notes</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">🕸️ Graph View</div><div class="obsidian-desc">Wikilink network</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">🌙 Dark Theme</div><div class="obsidian-desc">llm-wiki-dark.css</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">📝 Templates</div><div class="obsidian-desc">4 note templates</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">⚙️ app.json</div><div class="obsidian-desc">Vault config</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">📊 graph.json</div><div class="obsidian-desc">Graph settings</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">🔌 core-plugins</div><div class="obsidian-desc">Plugin config</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">🎨 appearance</div><div class="obsidian-desc">Theme settings</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">📂 plugins/*</div><div class="obsidian-desc">Data configs</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">📄 notes.json</div><div class="obsidian-desc">Note registry</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">🔗 cm-settings</div><div class="obsidian-desc">Code mirror</div></div>
+            <div class="obsidian-item"><div class="obsidian-name">🗂️ hotkeys</div><div class="obsidian-desc">Key bindings</div></div>
+          </div>
+          <div style="margin-top:0.5rem; font-size:0.6rem; color:#94a3b8; text-align:center;">14 files • Config state (not in git)</div>
+        </div>
+
+        <!-- Connection Legend -->
+        <div class="card">
+          <div class="card-header"><div class="card-dot" style="background:#06b6d4"></div><h3>Зв'язки (Connections)</h3></div>
+          <ul>
+            <li>• <span style="color:#3b82f6">blue</span> = sources → raw/ (immutable)</li>
+            <li>• <span style="color:#fbbf24">amber</span> = raw/ → integrator (universal scan)</li>
+            <li>• <span style="color:#34d399">emerald</span> = integrator → wiki pages</li>
+            <li>• <span style="color:#fb7185">rose</span> = wiki → doctor (diagnose + fix)</li>
+            <li>• <span style="color:#a78bfa">violet</span> = wiki → graph + schema</li>
+            <li>• <span style="color:#06b6d4">cyan</span> = cron jobs → tools (scheduled)</li>
+          </ul>
+        </div>
+
+        <!-- Architecture Summary -->
+        <div class="card">
+          <div class="card-header"><div class="card-dot" style="background:#3b82f6"></div><h3>Source Monitor</h3></div>
+          <ul>
+            <li>• 5 data sources: RSS, GitHub, Local, HF, YouTube</li>
+            <li>• Runs every 6 hours</li>
+            <li>• Writes to raw/ (immutable)</li>
+            <li>• SHA256 stored on ingest</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-dot" style="background:#34d399"></div><h3>Wiki Knowledge</h3></div>
+          <ul>
+            <li>• 3,441 synthesized pages</li>
+            <li>• 11 categories (concepts, entities...)</li>
+            <li>• Cross-linked with wikilinks</li>
+            <li>• Auto-updated by integrator</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-dot" style="background:#a78bfa"></div><h3>Graph & Schema</h3></div>
+          <ul>
+            <li>• 1,365 nodes, 6,289 edges</li>
+            <li>• 16 topic communities</li>
+            <li>• 287 tags in taxonomy</li>
+            <li>• Generated daily at 10:00</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-dot" style="background:#fbbf24"></div><h3>Architecture v2.0.0</h3></div>
+          <ul>
+            <li>• OOP package: wiki_app/</li>
+            <li>• DI Container for testing</li>
+            <li>• 472 tests (100% passing)</li>
+            <li>• Universal raw/ scanning</li>
+            <li>• YouTube integration</li>
+            <li>• 6 cron jobs (consolidated)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <p class="footer">LLM Wiki • Architecture Diagram v2.0.0 • 2026-07-31 • 3,441 wiki pages • 2,581 raw sources • 20 tools • 6 cron jobs • 472 tests (100%) • 7 connection types • OOP Refactor + Universal Integrator + YouTube</p>
+  </div>
+</body>
+</html>
