@@ -7,14 +7,26 @@ Provides commands for wiki management:
 - digest: Generate daily digest
 - monitor: Monitor sources
 - status: Show wiki status
+- page: Manage wiki pages
 """
 
 from pathlib import Path
+from datetime import datetime, timezone
+import json
 
 import typer
 
 from oslw.config.settings import Settings, settings
 from oslw.config.logging import setup_logging, get_logger
+from oslw.application import (
+    PageService,
+    IndexService,
+    IntegrityService,
+    GraphService,
+    QualityService,
+    DigestService,
+    SourceService,
+)
 
 cli = typer.Typer(
     name="oslw",
@@ -28,6 +40,36 @@ def _get_settings(path: Path | None) -> Settings:
     if path:
         return Settings(wiki_root=path)
     return settings
+
+
+def _get_page_service(wiki_root: Path | None) -> PageService:
+    """Get PageService instance."""
+    s = _get_settings(wiki_root)
+    return PageService(wiki_root=s.wiki_root)
+
+
+def _get_quality_service(wiki_root: Path | None) -> QualityService:
+    """Get QualityService instance."""
+    s = _get_settings(wiki_root)
+    return QualityService(wiki_root=s.wiki_root)
+
+
+def _get_graph_service(wiki_root: Path | None) -> GraphService:
+    """Get GraphService instance."""
+    s = _get_settings(wiki_root)
+    return GraphService(wiki_root=s.wiki_root)
+
+
+def _get_digest_service(wiki_root: Path | None) -> DigestService:
+    """Get DigestService instance."""
+    s = _get_settings(wiki_root)
+    return DigestService(wiki_root=s.wiki_root)
+
+
+def _get_source_service(wiki_root: Path | None) -> SourceService:
+    """Get SourceService instance."""
+    s = _get_settings(wiki_root)
+    return SourceService(wiki_root=s.wiki_root)
 
 
 @cli.command()
@@ -89,8 +131,12 @@ def doctor(
         None, "--layer", "-l",
         help="Specific layer to check (index, wiki_pages, metadata)",
     ),
+    apply: bool = typer.Option(
+        False, "--apply",
+        help="Apply fixes (only with --apply)",
+    ),
 ):
-    """Run WikiDoctor diagnosis."""
+    """Run WikiDoctor diagnosis and optionally fix issues."""
     s = _get_settings(wiki_root)
     setup_logging(s)
     logger = get_logger("cli.doctor")
@@ -102,10 +148,63 @@ def doctor(
     if layer:
         typer.echo(f"   Layer: {layer}")
 
-    typer.echo(f"\n⚠️  Not implemented - domain layer in progress")
-    typer.echo(f"   Phase 2: Domain layer implementation required")
+    try:
+        quality = _get_quality_service(wiki_root)
 
-    raise typer.Exit(0)
+        # Run full audit
+        audit = quality.run_full_audit()
+
+        # Print diagnosis results
+        diagnosis = audit["diagnosis"]
+        typer.echo(f"\n📊 Diagnosis Results:")
+        typer.echo(f"   Critical: {diagnosis['severity_counts'].get('critical', 0)}")
+        typer.echo(f"   Warnings: {diagnosis['severity_counts'].get('warning', 0)}")
+        typer.echo(f"   Info: {diagnosis['severity_counts'].get('info', 0)}")
+
+        # Print quality stats
+        quality_stats = audit["quality_stats"]
+        typer.echo(f"\n📈 Quality Statistics:")
+        typer.echo(f"   Total pages: {quality_stats['total_pages']}")
+        typer.echo(f"   With frontmatter: {quality_stats['pages_with_frontmatter']}")
+        typer.echo(f"   With SHA256: {quality_stats['pages_with_sha256']}")
+        typer.echo(f"   Orphan pages: {quality_stats['orphan_pages']}")
+        typer.echo(f"   Duplicate groups: {quality_stats['duplicate_groups']}")
+
+        # Print issues
+        if diagnosis["issues"]:
+            typer.echo(f"\n⚠️  Issues Found:")
+            for issue in diagnosis["issues"][:20]:  # Show first 20
+                typer.echo(f"   - {issue}")
+            if len(diagnosis["issues"]) > 20:
+                typer.echo(f"   ... and {len(diagnosis['issues']) - 20} more")
+
+        # Print validation errors
+        if audit["validation_errors"]:
+            typer.echo(f"\n🔍 Validation Errors:")
+            for slug, errors in audit["validation_errors"].items():
+                typer.echo(f"   {slug}:")
+                for error in errors[:5]:
+                    typer.echo(f"      - {error}")
+
+        # Print duplicates
+        if audit["duplicates"]:
+            typer.echo(f"\n📦 Duplicate Groups: {len(audit['duplicates'])}")
+            for i, group in enumerate(audit["duplicates"][:5]):
+                typer.echo(f"   Group {i+1}: {', '.join(group[:3])}")
+
+        # Apply fixes if requested
+        if apply:
+            typer.echo(f"\n🔧 Applying fixes...")
+            removed = quality.cleanup_duplicates(dry_run=False)
+            typer.echo(f"   Removed {len(removed)} duplicate files")
+
+        typer.echo(f"\n✅ Diagnosis complete!")
+        raise typer.Exit(0)
+
+    except Exception as e:
+        logger.error("Error running doctor: %s", str(e))
+        typer.echo(f"❌ Error: {str(e)}")
+        raise typer.Exit(1)
 
 
 @cli.command()
@@ -118,6 +217,10 @@ def sync(
         True, "--dry-run",
         help="Don't apply changes, just report",
     ),
+    force: bool = typer.Option(
+        False, "--force",
+        help="Force sync even if files exist",
+    ),
 ):
     """Synchronize raw articles to wiki pages."""
     s = _get_settings(wiki_root)
@@ -128,10 +231,71 @@ def sync(
     typer.echo(f"   Wiki root: {s.wiki_root}")
     typer.echo(f"   Dry run: {dry_run}")
 
-    typer.echo(f"\n⚠️  Not implemented - domain layer in progress")
-    typer.echo(f"   Phase 2: Domain layer implementation required")
+    try:
+        source_service = _get_source_service(wiki_root)
 
-    raise typer.Exit(0)
+        # List raw articles
+        raw_articles = source_service.get_raw_articles()
+        typer.echo(f"   Raw articles found: {len(raw_articles)}")
+
+        if not raw_articles:
+            typer.echo(f"   No raw articles to sync")
+            raise typer.Exit(0)
+
+        # Process each article
+        synced = 0
+        skipped = 0
+        errors = 0
+
+        for article_path in raw_articles:
+            try:
+                # Read article
+                with open(article_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                # Extract title from content
+                title = "Untitled"
+                for line in content.splitlines()[:10]:
+                    if line.startswith("# "):
+                        title = line[2:].strip()
+                        break
+
+                # Check if page already exists
+                slug = title.lower().replace(" ", "-").replace("—", "-")[:100]
+                page_service = _get_page_service(wiki_root)
+
+                if await page_service.page_exists(slug) and not force:
+                    typer.echo(f"   ⏭️  Skip: {title}")
+                    skipped += 1
+                    continue
+
+                # Create wiki page
+                await page_service.create_page(
+                    title=title,
+                    content=content,
+                    slug=slug,
+                    page_type="concept",
+                    tags=["synced"],
+                )
+                typer.echo(f"   ✅ Synced: {title}")
+                synced += 1
+
+            except Exception as e:
+                logger.error("Error syncing %s: %s", article_path, str(e))
+                typer.echo(f"   ❌ Error: {article_path} - {str(e)}")
+                errors += 1
+
+        typer.echo(f"\n📊 Sync Results:")
+        typer.echo(f"   Synced: {synced}")
+        typer.echo(f"   Skipped: {skipped}")
+        typer.echo(f"   Errors: {errors}")
+
+        raise typer.Exit(0)
+
+    except Exception as e:
+        logger.error("Error running sync: %s", str(e))
+        typer.echo(f"❌ Error: {str(e)}")
+        raise typer.Exit(1)
 
 
 @cli.command()
@@ -144,21 +308,49 @@ def graph(
         False, "--generate", "-g",
         help="Regenerate graph from wiki pages",
     ),
+    export: bool = typer.Option(
+        False, "--export", "-e",
+        help="Export graph to JSON file",
+    ),
 ):
     """Manage knowledge graph."""
     s = _get_settings(wiki_root)
     setup_logging(s)
     logger = get_logger("cli.graph")
 
-    if generate:
-        typer.echo(f"📊 Generating graph...")
-        typer.echo(f"   Wiki root: {s.wiki_root}")
-        typer.echo(f"\n⚠️  Not implemented - domain layer in progress")
-    else:
-        typer.echo(f"📊 Graph status:")
-        typer.echo(f"   Wiki root: {s.wiki_root}")
+    try:
+        graph_svc = _get_graph_service(wiki_root)
 
-    raise typer.Exit(0)
+        if generate:
+            typer.echo(f"📊 Generating graph...")
+            typer.echo(f"   Wiki root: {s.wiki_root}")
+
+            graph_dict = graph_svc.generate_graph()
+            nodes = len(graph_dict.get("nodes", {}))
+            edges = len(graph_dict.get("edges", []))
+
+            typer.echo(f"   Generated: {nodes} nodes, {edges} edges")
+
+            if export:
+                output_path = graph_svc.export_graph()
+                typer.echo(f"   Exported to: {output_path}")
+
+        else:
+            typer.echo(f"📊 Graph status:")
+            typer.echo(f"   Wiki root: {s.wiki_root}")
+
+            stats = graph_svc.get_stats()
+            typer.echo(f"   Nodes: {stats.nodes}")
+            typer.echo(f"   Edges: {stats.edges}")
+            typer.echo(f"   Categories: {stats.categories}")
+            typer.echo(f"   Density: {stats.density:.4f}")
+
+        raise typer.Exit(0)
+
+    except Exception as e:
+        logger.error("Error managing graph: %s", str(e))
+        typer.echo(f"❌ Error: {str(e)}")
+        raise typer.Exit(1)
 
 
 @cli.command()
@@ -171,6 +363,14 @@ def digest(
         24, "--hours", "-h",
         help="Hours to look back",
     ),
+    format: str = typer.Option(
+        "markdown", "--format", "-f",
+        help="Output format (markdown, json, text)",
+    ),
+    output: Path = typer.Option(
+        None, "--output", "-o",
+        help="Output file path",
+    ),
 ):
     """Generate daily digest."""
     s = _get_settings(wiki_root)
@@ -180,11 +380,35 @@ def digest(
     typer.echo(f"📰 Generating digest...")
     typer.echo(f"   Wiki root: {s.wiki_root}")
     typer.echo(f"   Hours: {hours}")
+    typer.echo(f"   Format: {format}")
 
-    typer.echo(f"\n⚠️  Not implemented - domain layer in progress")
-    typer.echo(f"   Phase 2: Domain layer implementation required")
+    try:
+        digest_svc = _get_digest_service(wiki_root)
 
-    raise typer.Exit(0)
+        # Generate digest
+        content = await digest_svc.export_digest(hours=hours, format=format)
+
+        # Output
+        if output:
+            with open(output, "w", encoding="utf-8") as f:
+                f.write(content)
+            typer.echo(f"   Exported to: {output}")
+        else:
+            typer.echo(f"\n{content}")
+
+        # Print summary
+        summary = await digest_svc.get_digest_summary(hours=hours)
+        typer.echo(f"\n📊 Digest Summary:")
+        typer.echo(f"   Total entries: {summary.total_entries}")
+        typer.echo(f"   By type: {summary.by_type}")
+        typer.echo(f"   By source: {summary.by_source}")
+
+        raise typer.Exit(0)
+
+    except Exception as e:
+        logger.error("Error generating digest: %s", str(e))
+        typer.echo(f"❌ Error: {str(e)}")
+        raise typer.Exit(1)
 
 
 @cli.command()
@@ -208,10 +432,105 @@ def monitor(
     if source:
         typer.echo(f"   Source: {source}")
 
-    typer.echo(f"\n⚠️  Not implemented - domain layer in progress")
-    typer.echo(f"   Phase 2: Domain layer implementation required")
+    try:
+        source_svc = _get_source_service(wiki_root)
 
-    raise typer.Exit(0)
+        # List sources
+        stats = source_svc.list_sources()
+        typer.echo(f"\n📋 Configured Sources:")
+        for s in stats:
+            status_icon = "✅" if not s.last_error else "❌"
+            typer.echo(f"   {status_icon} {s.name} ({s.type}) - {s.articles_count} articles")
+
+        # Check sources
+        typer.echo(f"\n🔍 Checking sources...")
+        results = source_svc.monitor_all()
+
+        updated = 0
+        for name, result in results.items():
+            if result.get("updated"):
+                typer.echo(f"   ✅ {name}: {result['updated']} new articles")
+                updated += 1
+            else:
+                typer.echo(f"   ⏭️  {name}: no updates")
+
+        typer.echo(f"\n📊 Monitor Results:")
+        typer.echo(f"   Sources checked: {len(results)}")
+        typer.echo(f"   Sources updated: {updated}")
+
+        raise typer.Exit(0)
+
+    except Exception as e:
+        logger.error("Error monitoring sources: %s", str(e))
+        typer.echo(f"❌ Error: {str(e)}")
+        raise typer.Exit(1)
+
+
+@cli.command()
+def page(
+    wiki_root: Path = typer.Option(
+        None, "--wiki-root", "-r",
+        help="Path to wiki root directory",
+    ),
+    slug: str = typer.Option(
+        None, "--slug", "-s",
+        help="Page slug",
+    ),
+    list: bool = typer.Option(
+        False, "--list", "-l",
+        help="List all pages",
+    ),
+    count: bool = typer.Option(
+        False, "--count", "-c",
+        help="Show page count",
+    ),
+):
+    """Manage wiki pages."""
+    s = _get_settings(wiki_root)
+    setup_logging(s)
+    logger = get_logger("cli.page")
+
+    try:
+        page_svc = _get_page_service(wiki_root)
+
+        if list:
+            # List pages
+            result = await page_svc.list_pages(limit=50, offset=0)
+            typer.echo(f"📄 Wiki Pages ({result.total} total):")
+            for p in result.pages:
+                typer.echo(f"   - {p.slug}: {p.title} ({p.type})")
+
+        elif count:
+            # Show count
+            total = await page_svc.get_page_count()
+            typer.echo(f"📄 Total pages: {total}")
+
+        elif slug:
+            # Get single page
+            try:
+                page = await page_svc.get_page(slug)
+                typer.echo(f"📄 Page: {page.title}")
+                typer.echo(f"   Slug: {page.slug}")
+                typer.echo(f"   Type: {page.type}")
+                typer.echo(f"   Tags: {', '.join(page.tags)}")
+                typer.echo(f"   Created: {page.created}")
+                typer.echo(f"   Updated: {page.updated}")
+                typer.echo(f"   Word count: {page.word_count}")
+                typer.echo(f"   Line count: {page.line_count}")
+            except Exception as e:
+                typer.echo(f"❌ Error: {str(e)}")
+                raise typer.Exit(1)
+
+        else:
+            typer.echo(f"❌ Provide --list, --count, or --slug")
+            raise typer.Exit(1)
+
+        raise typer.Exit(0)
+
+    except Exception as e:
+        logger.error("Error managing pages: %s", str(e))
+        typer.echo(f"❌ Error: {str(e)}")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
