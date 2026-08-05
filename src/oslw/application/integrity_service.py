@@ -8,8 +8,8 @@ Usage:
     from oslw.application import IntegrityService
 
     service = IntegrityService(wiki_root=settings.wiki_root)
-    result = await service.check_page("transformers-architecture")
-    report = await service.check_all_pages()
+    result = service.check_page("transformers-architecture")
+    report = service.check_all_pages()
 """
 
 from __future__ import annotations
@@ -64,8 +64,8 @@ class IntegrityService:
 
     Usage:
         service = IntegrityService(wiki_root=Path("./wiki"))
-        result = await service.check_page("transformers")
-        report = await service.check_all_pages()
+        result = service.check_page("transformers")
+        report = service.check_all_pages()
     """
 
     def __init__(self, wiki_root: str | Path):
@@ -77,7 +77,7 @@ class IntegrityService:
         self.file_manager = FileManager(wiki_root=Path(wiki_root))
         self.integrity = PageIntegrity(wiki_root=Path(wiki_root))
 
-    async def check_page(self, slug: str) -> IntegrityResult:
+    def check_page(self, slug: str) -> IntegrityResult:
         """Check integrity of a single page.
 
         Args:
@@ -91,7 +91,7 @@ class IntegrityService:
                    slug, result.sha256_match, len(result.broken_links))
         return result
 
-    async def check_all_pages(self) -> IntegrityReport:
+    def check_all_pages(self) -> IntegrityReport:
         """Check integrity of all wiki pages.
 
         Returns:
@@ -119,7 +119,7 @@ class IntegrityService:
                    report.total_checked, report.health_score)
         return report
 
-    async def fix_broken_links(self, slug: str) -> int:
+    def fix_broken_links(self, slug: str) -> int:
         """Fix broken wikilinks in a page.
 
         Args:
@@ -137,7 +137,7 @@ class IntegrityService:
         logger.info("Fixed %d links in %s", fixed, slug)
         return fixed
 
-    async def verify_all_sha256(self) -> IntegrityReport:
+    def verify_all_sha256(self) -> IntegrityReport:
         """Verify SHA256 hashes for all pages.
 
         Returns:

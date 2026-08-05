@@ -8,8 +8,8 @@ Usage:
     from oslw.application import QualityService
 
     service = QualityService(wiki_root=settings.wiki_root)
-    report = await service.diagnose(layer="all")
-    stats = await service.get_quality_stats()
+    report = service.diagnose(layer="all")
+    stats = service.get_quality_stats()
 """
 
 from __future__ import annotations
@@ -59,8 +59,8 @@ class QualityService:
 
     Usage:
         service = QualityService(wiki_root=Path("./wiki"))
-        report = await service.diagnose(layer="all")
-        stats = await service.get_quality_stats()
+        report = service.diagnose(layer="all")
+        stats = service.get_quality_stats()
     """
 
     def __init__(self, wiki_root: str | Path):
@@ -74,7 +74,7 @@ class QualityService:
         self.linter = PageLint(wiki_root=Path(wiki_root))
         self.dedup = Deduplication(wiki_root=Path(wiki_root))
 
-    async def diagnose(self, layer: str = "all") -> DoctorReport:
+    def diagnose(self, layer: str = "all") -> DoctorReport:
         """Run multi-layer diagnosis on the wiki.
 
         Args:
@@ -87,7 +87,7 @@ class QualityService:
         logger.info("Diagnosis complete: %d issues found", len(report.issues))
         return report
 
-    async def validate_page(self, slug: str) -> list[str]:
+    def validate_page(self, slug: str) -> list[str]:
         """Validate structure of a single page.
 
         Args:
@@ -104,7 +104,7 @@ class QualityService:
         logger.info("Validated page %s: %d errors", slug, len(errors))
         return errors
 
-    async def find_duplicates(self) -> list[dict]:
+    def find_duplicates(self) -> list[dict]:
         """Find duplicate pages in the wiki.
 
         Returns:
@@ -114,7 +114,7 @@ class QualityService:
         logger.info("Found %d duplicate groups", len(groups))
         return groups
 
-    async def cleanup_duplicates(self, dry_run: bool = True) -> list[str]:
+    def cleanup_duplicates(self, dry_run: bool = True) -> list[str]:
         """Clean up duplicate pages.
 
         Args:
@@ -129,7 +129,7 @@ class QualityService:
                    len(removed), "would be removed" if dry_run else "removed")
         return removed
 
-    async def get_quality_stats(self) -> QualityStats:
+    def get_quality_stats(self) -> QualityStats:
         """Get comprehensive quality statistics.
 
         Returns:
@@ -171,26 +171,26 @@ class QualityService:
 
         return stats
 
-    async def run_full_audit(self) -> dict:
+    def run_full_audit(self) -> dict:
         """Run a full quality audit.
 
         Returns:
             Dictionary with all audit results
         """
         # Run diagnosis
-        report = await self.diagnose(layer="all")
+        report = self.diagnose(layer="all")
 
         # Get quality stats
-        stats = await self.get_quality_stats()
+        stats = self.get_quality_stats()
 
         # Find duplicates
-        duplicates = await self.find_duplicates()
+        duplicates = self.find_duplicates()
 
         # Validate all pages (sample - first 10)
         pages = self.file_manager.list_wiki_pages()
         validation_errors = {}
         for page_meta in pages[:10]:
-            errors = await self.validate_page(page_meta.slug)
+            errors = self.validate_page(page_meta.slug)
             if errors:
                 validation_errors[page_meta.slug] = errors
 

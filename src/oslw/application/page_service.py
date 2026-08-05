@@ -8,9 +8,9 @@ Usage:
     from oslw.application import PageService
 
     service = PageService(wiki_root=settings.wiki_root)
-    page = await service.get_page("transformers-architecture")
-    pages = await service.list_pages(type="concept", limit=50)
-    created = await service.create_page(title="New Page", content="# Content")
+    page = service.get_page("transformers-architecture")
+    pages = service.list_pages(type="concept", limit=50)
+    created = service.create_page(title="New Page", content="# Content")
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ class PageService:
 
     Usage:
         service = PageService(wiki_root=Path("./wiki"))
-        page = await service.get_page("transformers-architecture")
+        page = service.get_page("transformers-architecture")
     """
 
     def __init__(self, wiki_root: str | Path):
@@ -72,7 +72,7 @@ class PageService:
         """
         self.file_manager = FileManager(wiki_root=Path(wiki_root))
 
-    async def get_page(self, slug: str) -> WikiPage:
+    def get_page(self, slug: str) -> WikiPage:
         """Get a wiki page by slug.
 
         Args:
@@ -90,7 +90,7 @@ class PageService:
 
         return WikiPage.from_meta(page_meta)
 
-    async def get_page_by_path(self, file_path: str | Path) -> WikiPage:
+    def get_page_by_path(self, file_path: str | Path) -> WikiPage:
         """Get a wiki page by file path.
 
         Args:
@@ -108,7 +108,7 @@ class PageService:
 
         return WikiPage.from_meta(page_meta)
 
-    async def list_pages(
+    def list_pages(
         self,
         category: Optional[str] = None,
         type_filter: Optional[str] = None,
@@ -152,7 +152,7 @@ class PageService:
             offset=offset,
         )
 
-    async def create_page(
+    def create_page(
         self,
         title: str,
         content: str,
@@ -205,12 +205,12 @@ class PageService:
         written_path = self.file_manager.write_page(page_meta)
 
         # Reload to get full metadata
-        created_page = await self.get_page(slug)
+        created_page = self.get_page(slug)
         logger.info("Created page: %s -> %s", slug, written_path)
 
         return created_page
 
-    async def update_page(
+    def update_page(
         self,
         slug: str,
         title: Optional[str] = None,
@@ -231,7 +231,7 @@ class PageService:
         Raises:
             PageNotFoundError: If page doesn't exist
         """
-        page = await self.get_page(slug)
+        page = self.get_page(slug)
 
         # Apply updates
         if title is not None:
@@ -246,12 +246,12 @@ class PageService:
         written_path = self.file_manager.write_page(page_meta)
 
         # Reload to get updated metadata
-        updated_page = await self.get_page(slug)
+        updated_page = self.get_page(slug)
         logger.info("Updated page: %s -> %s", slug, written_path)
 
         return updated_page
 
-    async def delete_page(self, slug: str) -> bool:
+    def delete_page(self, slug: str) -> bool:
         """Delete a wiki page.
 
         Args:
@@ -264,7 +264,7 @@ class PageService:
             PageNotFoundError: If page doesn't exist (when strict=True)
         """
         # Verify page exists
-        page = await self.get_page(slug)
+        page = self.get_page(slug)
 
         # Delete
         deleted = self.file_manager.delete_page(slug)
@@ -276,7 +276,7 @@ class PageService:
 
         return deleted
 
-    async def page_exists(self, slug: str) -> bool:
+    def page_exists(self, slug: str) -> bool:
         """Check if a page exists.
 
         Args:
@@ -287,7 +287,7 @@ class PageService:
         """
         return self.file_manager.read_page(slug) is not None
 
-    async def get_page_count(self) -> int:
+    def get_page_count(self) -> int:
         """Get total number of wiki pages.
 
         Returns:

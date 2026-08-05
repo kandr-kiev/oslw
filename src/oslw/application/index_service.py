@@ -8,8 +8,8 @@ Usage:
     from oslw.application import IndexService
 
     service = IndexService(wiki_root=settings.wiki_root)
-    index = await service.get_index()
-    await service.rebuild_index()
+    index = service.get_index()
+    service.rebuild_index()
 """
 
 from __future__ import annotations
@@ -54,8 +54,8 @@ class IndexService:
 
     Usage:
         service = IndexService(wiki_root=Path("./wiki"))
-        index = await service.get_index()
-        stats = await service.get_stats()
+        index = service.get_index()
+        stats = service.get_stats()
     """
 
     def __init__(self, wiki_root: str | Path):
@@ -67,7 +67,7 @@ class IndexService:
         self.file_manager = FileManager(wiki_root=Path(wiki_root))
         self.index = WikiIndex(wiki_root=Path(wiki_root))
 
-    async def get_index(self) -> WikiIndex:
+    def get_index(self) -> WikiIndex:
         """Load and return the wiki index.
 
         Returns:
@@ -82,7 +82,7 @@ class IndexService:
 
         return self.index
 
-    async def rebuild_index(self) -> int:
+    def rebuild_index(self) -> int:
         """Rebuild the wiki index from all pages.
 
         Scans all wiki pages and updates index.md.
@@ -99,7 +99,7 @@ class IndexService:
         logger.info("Rebuilt index with %d entries", len(self.index.entries))
         return len(self.index.entries)
 
-    async def search_index(self, query: str) -> list[IndexEntry]:
+    def search_index(self, query: str) -> list[IndexEntry]:
         """Search index entries by query.
 
         Args:
@@ -109,7 +109,7 @@ class IndexService:
             List of matching IndexEntry objects
         """
         if not self.index.entries:
-            await self.get_index()
+            self.get_index()
 
         results = []
         query_lower = query.lower()
@@ -123,13 +123,13 @@ class IndexService:
         logger.info("Search '%s' returned %d results", query, len(results))
         return results
 
-    async def get_stats(self) -> IndexStats:
+    def get_stats(self) -> IndexStats:
         """Get index statistics.
 
         Returns:
             IndexStats with current statistics
         """
-        index = await self.get_index()
+        index = self.get_index()
         pages = self.file_manager.list_wiki_pages()
 
         # Count categories
@@ -144,7 +144,7 @@ class IndexService:
             last_updated=index.updated_at,
         )
 
-    async def get_entry(self, slug: str) -> Optional[IndexEntry]:
+    def get_entry(self, slug: str) -> Optional[IndexEntry]:
         """Get a single index entry by slug.
 
         Args:
@@ -154,6 +154,6 @@ class IndexService:
             IndexEntry if found, None otherwise
         """
         if not self.index.entries:
-            await self.get_index()
+            self.get_index()
 
         return self.index.entries.get(slug)

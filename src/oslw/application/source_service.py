@@ -8,8 +8,8 @@ Usage:
     from oslw.application import SourceService
 
     service = SourceService(wiki_root=settings.wiki_root)
-    sources = await service.list_sources()
-    result = await service.ingest_content(title="New Article", content="# Content")
+    sources = service.list_sources()
+    result = service.ingest_content(title="New Article", content="# Content")
 """
 
 from __future__ import annotations
@@ -81,8 +81,8 @@ class SourceService:
 
     Usage:
         service = SourceService(wiki_root=Path("./wiki"))
-        sources = await service.list_sources()
-        report = await service.ingest_content(title="New Article", content="# Content")
+        sources = service.list_sources()
+        report = service.ingest_content(title="New Article", content="# Content")
     """
 
     def __init__(self, wiki_root: str | Path):
@@ -95,7 +95,7 @@ class SourceService:
         self.ingestor = ContentIngestor(wiki_root=Path(wiki_root))
         self.monitor = SourceMonitor(wiki_root=Path(wiki_root))
 
-    async def list_sources(self) -> list[SourceStats]:
+    def list_sources(self) -> list[SourceStats]:
         """List all configured sources.
 
         Returns:
@@ -117,7 +117,7 @@ class SourceService:
         logger.info("Listed %d sources", len(stats))
         return stats
 
-    async def ingest_content(
+    def ingest_content(
         self,
         title: str,
         content: str,
@@ -162,7 +162,7 @@ class SourceService:
 
         return report
 
-    async def monitor_sources(self) -> dict:
+    def monitor_sources(self) -> dict:
         """Monitor all configured sources for updates.
 
         Returns:
@@ -176,7 +176,7 @@ class SourceService:
 
         return results
 
-    async def get_raw_articles(self) -> list[str]:
+    def get_raw_articles(self) -> list[str]:
         """List all raw articles.
 
         Returns:
@@ -187,7 +187,7 @@ class SourceService:
         logger.info("Listed %d raw articles", len(paths))
         return paths
 
-    async def cleanup_duplicates(self, directory: str = "raw/articles") -> list[str]:
+    def cleanup_duplicates(self, directory: str = "raw/articles") -> list[str]:
         """Clean up duplicate articles.
 
         Args:
@@ -201,7 +201,7 @@ class SourceService:
         logger.info("Cleaned up %d duplicates in %s", len(removed), directory)
         return removed
 
-    async def add_source(
+    def add_source(
         self,
         name: str,
         source_type: str,
@@ -242,7 +242,7 @@ class SourceService:
 
         return source
 
-    async def remove_source(self, name: str) -> bool:
+    def remove_source(self, name: str) -> bool:
         """Remove a content source.
 
         Args:

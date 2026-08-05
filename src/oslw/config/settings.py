@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     # Wiki Root (source of truth - file-based ONLY, no database)
     # ========================================================================
     wiki_root: Path = Field(
-        default=Path("./wiki"),
-        description="Root directory for wiki files (raw/ + wiki/)",
+        default=Path("/workspace/llm-wiki"),
+        description="Root directory for wiki files (raw/ + wiki/). Override with OSLW_WIKI_ROOT env.",
     )
 
     # ========================================================================

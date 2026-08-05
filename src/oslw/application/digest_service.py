@@ -8,8 +8,8 @@ Usage:
     from oslw.application import DigestService
 
     service = DigestService(wiki_root=settings.wiki_root)
-    entries = await service.generate_digest(hours=24)
-    await service.export_digest(format="markdown")
+    entries = service.generate_digest(hours=24)
+    service.export_digest(format="markdown")
 """
 
 from __future__ import annotations
@@ -56,8 +56,8 @@ class DigestService:
 
     Usage:
         service = DigestService(wiki_root=Path("./wiki"))
-        entries = await service.generate_digest(hours=24)
-        summary = await service.get_digest_summary(hours=24)
+        entries = service.generate_digest(hours=24)
+        summary = service.get_digest_summary(hours=24)
     """
 
     def __init__(self, wiki_root: str | Path):
@@ -69,7 +69,7 @@ class DigestService:
         self.file_manager = FileManager(wiki_root=Path(wiki_root))
         self.digest = NewspaperDigest(wiki_root=Path(wiki_root))
 
-    async def generate_digest(self, hours: int = 24) -> list[DigestEntry]:
+    def generate_digest(self, hours: int = 24) -> list[DigestEntry]:
         """Generate a newspaper digest for the specified time period.
 
         Args:
@@ -83,7 +83,7 @@ class DigestService:
                    hours, len(entries))
         return entries
 
-    async def get_digest_summary(self, hours: int = 24) -> DigestSummary:
+    def get_digest_summary(self, hours: int = 24) -> DigestSummary:
         """Get a summary of the digest.
 
         Args:
@@ -92,7 +92,7 @@ class DigestService:
         Returns:
             DigestSummary with statistics
         """
-        entries = await self.generate_digest(hours=hours)
+        entries = self.generate_digest(hours=hours)
 
         # Count by type
         by_type: dict[str, int] = {}
@@ -113,7 +113,7 @@ class DigestService:
             by_source=by_source,
         )
 
-    async def export_digest(self, hours: int = 24,
+    def export_digest(self, hours: int = 24,
                           format: str = "markdown") -> str:
         """Export digest in specified format.
 
@@ -124,7 +124,7 @@ class DigestService:
         Returns:
             Digest content in specified format
         """
-        entries = await self.generate_digest(hours=hours)
+        entries = self.generate_digest(hours=hours)
 
         if format == "markdown":
             return self._export_markdown(entries)
@@ -183,7 +183,7 @@ class DigestService:
 
         return "\n".join(lines)
 
-    async def get_recent_entries(self, limit: int = 10,
+    def get_recent_entries(self, limit: int = 10,
                                hours: int = 24) -> list[DigestEntry]:
         """Get most recent digest entries.
 
@@ -194,5 +194,5 @@ class DigestService:
         Returns:
             List of recent DigestEntry objects
         """
-        entries = await self.generate_digest(hours=hours)
+        entries = self.generate_digest(hours=hours)
         return entries[:limit]

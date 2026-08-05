@@ -13,6 +13,7 @@ Provides commands for wiki management:
 from pathlib import Path
 from datetime import datetime, timezone
 import json
+import os
 
 import typer
 
@@ -35,38 +36,47 @@ cli = typer.Typer(
 )
 
 
-def _get_settings(path: Path | None) -> Settings:
+def _get_settings(wiki_root: Path | None = None) -> Settings:
     """Get settings, optionally overriding wiki_root."""
-    if path:
-        return Settings(wiki_root=path)
-    return settings
+    # Handle Typer OptionInfo objects when called directly from Python
+    from typer.models import OptionInfo
+    if isinstance(wiki_root, OptionInfo):
+        wiki_root = None
+    
+    if wiki_root is None:
+        env_root = os.environ.get("OSLW_WIKI_ROOT")
+        if env_root:
+            wiki_root = Path(env_root)
+        else:
+            return settings  # Use singleton with default
+    return Settings(wiki_root=wiki_root)
 
 
-def _get_page_service(wiki_root: Path | None) -> PageService:
+def _get_page_service(wiki_root: Path | None = None) -> PageService:
     """Get PageService instance."""
     s = _get_settings(wiki_root)
     return PageService(wiki_root=s.wiki_root)
 
 
-def _get_quality_service(wiki_root: Path | None) -> QualityService:
+def _get_quality_service(wiki_root: Path | None = None) -> QualityService:
     """Get QualityService instance."""
     s = _get_settings(wiki_root)
     return QualityService(wiki_root=s.wiki_root)
 
 
-def _get_graph_service(wiki_root: Path | None) -> GraphService:
+def _get_graph_service(wiki_root: Path | None = None) -> GraphService:
     """Get GraphService instance."""
     s = _get_settings(wiki_root)
     return GraphService(wiki_root=s.wiki_root)
 
 
-def _get_digest_service(wiki_root: Path | None) -> DigestService:
+def _get_digest_service(wiki_root: Path | None = None) -> DigestService:
     """Get DigestService instance."""
     s = _get_settings(wiki_root)
     return DigestService(wiki_root=s.wiki_root)
 
 
-def _get_source_service(wiki_root: Path | None) -> SourceService:
+def _get_source_service(wiki_root: Path | None = None) -> SourceService:
     """Get SourceService instance."""
     s = _get_settings(wiki_root)
     return SourceService(wiki_root=s.wiki_root)
@@ -76,7 +86,7 @@ def _get_source_service(wiki_root: Path | None) -> SourceService:
 def status(
     wiki_root: Path = typer.Option(
         None, "--wiki-root", "-r",
-        help="Path to wiki root directory",
+        help="Path to wiki root directory (or set OSLW_WIKI_ROOT env)",
     ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v",
@@ -104,13 +114,11 @@ def status(
     typer.echo(f"   Raw articles: {raw_count}")
 
     if verbose:
-        # Check index.md
         if s.index_path.exists():
             typer.echo(f"   Index.md: ✅ exists")
         else:
             typer.echo(f"   Index.md: ❌ missing")
 
-        # Check schema
         if s.schema_path.exists():
             typer.echo(f"   Schema.md: ✅ exists")
         else:
@@ -121,7 +129,7 @@ def status(
 def doctor(
     wiki_root: Path = typer.Option(
         None, "--wiki-root", "-r",
-        help="Path to wiki root directory",
+        help="Path to wiki root directory (or set OSLW_WIKI_ROOT env)",
     ),
     dry_run: bool = typer.Option(
         True, "--dry-run",
@@ -151,17 +159,14 @@ def doctor(
     try:
         quality = _get_quality_service(wiki_root)
 
-        # Run full audit
         audit = quality.run_full_audit()
 
-        # Print diagnosis results
         diagnosis = audit["diagnosis"]
         typer.echo(f"\n📊 Diagnosis Results:")
         typer.echo(f"   Critical: {diagnosis['severity_counts'].get('critical', 0)}")
         typer.echo(f"   Warnings: {diagnosis['severity_counts'].get('warning', 0)}")
         typer.echo(f"   Info: {diagnosis['severity_counts'].get('info', 0)}")
 
-        # Print quality stats
         quality_stats = audit["quality_stats"]
         typer.echo(f"\n📈 Quality Statistics:")
         typer.echo(f"   Total pages: {quality_stats['total_pages']}")
@@ -170,15 +175,13 @@ def doctor(
         typer.echo(f"   Orphan pages: {quality_stats['orphan_pages']}")
         typer.echo(f"   Duplicate groups: {quality_stats['duplicate_groups']}")
 
-        # Print issues
         if diagnosis["issues"]:
             typer.echo(f"\n⚠️  Issues Found:")
-            for issue in diagnosis["issues"][:20]:  # Show first 20
+            for issue in diagnosis["issues"][:20]:
                 typer.echo(f"   - {issue}")
             if len(diagnosis["issues"]) > 20:
                 typer.echo(f"   ... and {len(diagnosis['issues']) - 20} more")
 
-        # Print validation errors
         if audit["validation_errors"]:
             typer.echo(f"\n🔍 Validation Errors:")
             for slug, errors in audit["validation_errors"].items():
@@ -186,13 +189,11 @@ def doctor(
                 for error in errors[:5]:
                     typer.echo(f"      - {error}")
 
-        # Print duplicates
         if audit["duplicates"]:
             typer.echo(f"\n📦 Duplicate Groups: {len(audit['duplicates'])}")
             for i, group in enumerate(audit["duplicates"][:5]):
                 typer.echo(f"   Group {i+1}: {', '.join(group[:3])}")
 
-        # Apply fixes if requested
         if apply:
             typer.echo(f"\n🔧 Applying fixes...")
             removed = quality.cleanup_duplicates(dry_run=False)
@@ -211,7 +212,7 @@ def doctor(
 def sync(
     wiki_root: Path = typer.Option(
         None, "--wiki-root", "-r",
-        help="Path to wiki root directory",
+        help="Path to wiki root directory (or set OSLW_WIKI_ROOT env)",
     ),
     dry_run: bool = typer.Option(
         True, "--dry-run",
@@ -234,7 +235,6 @@ def sync(
     try:
         source_service = _get_source_service(wiki_root)
 
-        # List raw articles
         raw_articles = source_service.get_raw_articles()
         typer.echo(f"   Raw articles found: {len(raw_articles)}")
 
@@ -242,35 +242,30 @@ def sync(
             typer.echo(f"   No raw articles to sync")
             raise typer.Exit(0)
 
-        # Process each article
         synced = 0
         skipped = 0
         errors = 0
 
         for article_path in raw_articles:
             try:
-                # Read article
                 with open(article_path, "r", encoding="utf-8") as f:
                     content = f.read()
 
-                # Extract title from content
                 title = "Untitled"
                 for line in content.splitlines()[:10]:
                     if line.startswith("# "):
                         title = line[2:].strip()
                         break
 
-                # Check if page already exists
                 slug = title.lower().replace(" ", "-").replace("—", "-")[:100]
                 page_service = _get_page_service(wiki_root)
 
-                if await page_service.page_exists(slug) and not force:
+                if page_service.page_exists(slug) and not force:
                     typer.echo(f"   ⏭️  Skip: {title}")
                     skipped += 1
                     continue
 
-                # Create wiki page
-                await page_service.create_page(
+                page_service.create_page(
                     title=title,
                     content=content,
                     slug=slug,
@@ -302,7 +297,7 @@ def sync(
 def graph(
     wiki_root: Path = typer.Option(
         None, "--wiki-root", "-r",
-        help="Path to wiki root directory",
+        help="Path to wiki root directory (or set OSLW_WIKI_ROOT env)",
     ),
     generate: bool = typer.Option(
         False, "--generate", "-g",
@@ -357,7 +352,7 @@ def graph(
 def digest(
     wiki_root: Path = typer.Option(
         None, "--wiki-root", "-r",
-        help="Path to wiki root directory",
+        help="Path to wiki root directory (or set OSLW_WIKI_ROOT env)",
     ),
     hours: int = typer.Option(
         24, "--hours", "-h",
@@ -385,10 +380,8 @@ def digest(
     try:
         digest_svc = _get_digest_service(wiki_root)
 
-        # Generate digest
-        content = await digest_svc.export_digest(hours=hours, format=format)
+        content = digest_svc.export_digest(hours=hours, format=format)
 
-        # Output
         if output:
             with open(output, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -396,8 +389,7 @@ def digest(
         else:
             typer.echo(f"\n{content}")
 
-        # Print summary
-        summary = await digest_svc.get_digest_summary(hours=hours)
+        summary = digest_svc.get_digest_summary(hours=hours)
         typer.echo(f"\n📊 Digest Summary:")
         typer.echo(f"   Total entries: {summary.total_entries}")
         typer.echo(f"   By type: {summary.by_type}")
@@ -415,7 +407,7 @@ def digest(
 def monitor(
     wiki_root: Path = typer.Option(
         None, "--wiki-root", "-r",
-        help="Path to wiki root directory",
+        help="Path to wiki root directory (or set OSLW_WIKI_ROOT env)",
     ),
     source: str = typer.Option(
         None, "--source", "-s",
@@ -435,14 +427,12 @@ def monitor(
     try:
         source_svc = _get_source_service(wiki_root)
 
-        # List sources
         stats = source_svc.list_sources()
         typer.echo(f"\n📋 Configured Sources:")
         for s in stats:
             status_icon = "✅" if not s.last_error else "❌"
             typer.echo(f"   {status_icon} {s.name} ({s.type}) - {s.articles_count} articles")
 
-        # Check sources
         typer.echo(f"\n🔍 Checking sources...")
         results = source_svc.monitor_all()
 
@@ -470,7 +460,7 @@ def monitor(
 def page(
     wiki_root: Path = typer.Option(
         None, "--wiki-root", "-r",
-        help="Path to wiki root directory",
+        help="Path to wiki root directory (or set OSLW_WIKI_ROOT env)",
     ),
     slug: str = typer.Option(
         None, "--slug", "-s",
@@ -494,21 +484,18 @@ def page(
         page_svc = _get_page_service(wiki_root)
 
         if list:
-            # List pages
-            result = await page_svc.list_pages(limit=50, offset=0)
+            result = page_svc.list_pages(limit=50, offset=0)
             typer.echo(f"📄 Wiki Pages ({result.total} total):")
             for p in result.pages:
                 typer.echo(f"   - {p.slug}: {p.title} ({p.type})")
 
         elif count:
-            # Show count
-            total = await page_svc.get_page_count()
+            total = page_svc.get_page_count()
             typer.echo(f"📄 Total pages: {total}")
 
         elif slug:
-            # Get single page
             try:
-                page = await page_svc.get_page(slug)
+                page = page_svc.get_page(slug)
                 typer.echo(f"📄 Page: {page.title}")
                 typer.echo(f"   Slug: {page.slug}")
                 typer.echo(f"   Type: {page.type}")
@@ -522,13 +509,13 @@ def page(
                 raise typer.Exit(1)
 
         else:
-            typer.echo(f"❌ Provide --list, --count, or --slug")
+            typer.echo(f"❌ No action specified. Use --list, --count, or --slug <slug>")
             raise typer.Exit(1)
 
         raise typer.Exit(0)
 
     except Exception as e:
-        logger.error("Error managing pages: %s", str(e))
+        logger.error("Error managing page: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
         raise typer.Exit(1)
 

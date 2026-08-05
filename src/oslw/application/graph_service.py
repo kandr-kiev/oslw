@@ -8,8 +8,8 @@ Usage:
     from oslw.application import GraphService
 
     service = GraphService(wiki_root=settings.wiki_root)
-    graph = await service.generate_graph()
-    results = await service.search("RAG", depth=2)
+    graph = service.generate_graph()
+    results = service.search("RAG", depth=2)
 """
 
 from __future__ import annotations
@@ -69,8 +69,8 @@ class GraphService:
 
     Usage:
         service = GraphService(wiki_root=Path("./wiki"))
-        graph = await service.generate_graph()
-        results = await service.search("transformers", depth=2)
+        graph = service.generate_graph()
+        results = service.search("transformers", depth=2)
     """
 
     def __init__(self, wiki_root: str | Path):
@@ -83,7 +83,7 @@ class GraphService:
         self.generator = GraphGenerator(wiki_root=Path(wiki_root))
         self.query = GraphQuery(wiki_root=Path(wiki_root))
 
-    async def generate_graph(self) -> dict:
+    def generate_graph(self) -> dict:
         """Generate knowledge graph from wiki pages.
 
         Scans all wiki pages, extracts wikilinks,
@@ -97,7 +97,7 @@ class GraphService:
                    len(graph.nodes), len(graph.edges))
         return graph.to_dict()
 
-    async def search(self, query: str, depth: int = 2,
+    def search(self, query: str, depth: int = 2,
                     limit: int = 10) -> SearchResults:
         """Search knowledge graph for relevant pages.
 
@@ -121,7 +121,7 @@ class GraphService:
             total=len(results),
         )
 
-    async def get_stats(self) -> GraphStats:
+    def get_stats(self) -> GraphStats:
         """Get graph statistics.
 
         Returns:
@@ -145,7 +145,7 @@ class GraphService:
             density=density,
         )
 
-    async def export_graph(self, output_path: Optional[str | Path] = None) -> Path:
+    def export_graph(self, output_path: Optional[str | Path] = None) -> Path:
         """Export graph to JSON file.
 
         Args:
@@ -163,7 +163,7 @@ class GraphService:
         logger.info("Exported graph to %s", output_path)
         return Path(output_path)
 
-    async def get_node(self, slug: str) -> Optional[dict]:
+    def get_node(self, slug: str) -> Optional[dict]:
         """Get a single graph node by slug.
 
         Args:
@@ -175,7 +175,7 @@ class GraphService:
         graph = self.generator.generate()
         return graph.nodes.get(slug)
 
-    async def get_connections(self, slug: str) -> list[dict]:
+    def get_connections(self, slug: str) -> list[dict]:
         """Get all connections for a node.
 
         Args:
