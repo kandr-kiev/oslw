@@ -164,3 +164,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **File-based storage**: All data in markdown files
 - **No database**: No SQL, no cache, no separate data store
 - **Fully isolated**: Zero dependency on wiki_app
+
+## [0.3.0] - 2026-08-05
+
+### Added
+
+#### Phase 12: Architectural Refactoring & Documentation
+- **Cron architecture unified**: Internal `CronScheduler` removed — OSLW cron tasks are now pure functions in `src/oslw/cron/jobs.py`
+- **System cron integration**: 5 OSLW cron jobs managed by Hermes scheduler (not internal async loop):
+  - `OSLW Source Monitor` (every 360m) → `python -m oslw.cli monitor`
+  - `OSLW Wiki Integrator` (every 720m) → `python -m oslw.cli sync`
+  - `OSLW Wiki Doctor` (every 720m) → `python -m oslw.cli doctor`
+  - `OSLW Daily Digest` (0 9 * * *) → `python -m oslw.cli digest`
+  - `OSLW Graph & Quality Monitor` (0 10 * * *) → `python -m oslw.cli graph`
+- **CLI entry point**: `__main__.py` created for `python -m oslw.cli` execution
+- **CLI command syntax**: `python -m oslw.cli <command>` (e.g., `sync`, `doctor`, `graph`)
+- **wiki_root configuration**: Default `/workspace/llm-wiki` via `settings.py`, overridable via `OSLW_WIKI_ROOT` env var — no hardcoded paths in cron prompts
+
+### Changed
+
+#### Application Layer — Async → Sync
+- **All async methods converted to sync** in 7 application services:
+  - `page_service.py`, `index_service.py`, `integrity_service.py`
+  - `graph_service.py`, `quality_service.py`, `digest_service.py`, `source_service.py`
+- **No `async/await` remains** in the entire codebase — file-based storage doesn't require async I/O
+- **0 async methods** across all application layer files
+
+#### Cron Jobs
+- **`DoctorService` → `QualityService`**: Renamed and updated
+- **SourceMonitor**: Added to `domain/sources/monitor.py` with `list_sources()`, `add_source()`, `remove_source()`, `monitor_all()`
+- **Cron jobs refactored to pure functions**: `doctor_job()`, `graph_job()`, `digest_job()`, `sources_job()`, `quality_job()`, `index_job()`
+- **`scheduler.py` removed**: Internal async scheduler deleted — system cron handles scheduling
+
+#### CLI Commands
+- **`cron` subcommand removed**: No longer needed (system cron handles scheduling)
+- **`page` command implemented**: `--list`, `--count`, `--slug <slug>` options
+- **Typer OptionInfo handling**: Fixed direct Python calls (when not invoked via CLI)
+- **Missing `Path` import fixed**: Added to `domain/sources/monitor.py`
+
+#### Documentation
+- **`docs/DEVELOPMENT.md`**: Created (408 lines) — full development guide
+- **`docs/CONTRIBUTING.md`**: Created (232 lines) — contributor guidelines
+- **`docs/ROADMAP.md`**: Created — project roadmap
+
+### Testing
+- **61/61 tests passing** (up from 47)
+- **New cron tests**: 14 tests for cron job functions in `tests/cron/test_jobs.py`
+- **Removed**: `tests/cron/test_scheduler.py` (scheduler deleted)
+
+### Technical
+- **All scripts use `wiki_app` services**: No standalone scripts bypassing config
+- **Logging migrated**: All 5 cron scripts use `logger.*` via `wiki_app.backend.core.logger.get_logger`
+- **LOG_DIR**: `/workspace/llm-wiki/logs/`
+
+### Architecture
+- **Clean separation**: OSLW fully isolated, file-based, no database
+- **System cron over internal scheduler**: More reliable, better logging, no daemon process
+- **Configuration-driven**: `wiki_root` from settings/env, not hardcoded in cron prompts
+- **Sync-first**: No async/await anywhere — simpler, more maintainable for file-based operations
