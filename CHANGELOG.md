@@ -66,6 +66,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-08-05
 
+### Added
+
+#### Phase 3: Application Layer
+- **PageService**: CRUD operations for wiki pages (page_service.py)
+- **IndexService**: index.md management and updates (index_service.py)
+- **IntegrityService**: Integrity checks and validation (integrity_service.py)
+- **GraphService**: Knowledge graph generation and queries (graph_service.py)
+- **QualityService**: Quality monitoring, linting, deduplication (quality_service.py)
+- **DigestService**: Newspaper digest generation (digest_service.py)
+- **SourceService**: Content source management and ingestion (source_service.py)
+
+#### Phase 4: API Layer
+- **7 endpoints** with full implementation:
+  - `/api/v1/wiki/pages` — CRUD for wiki pages
+  - `/api/v1/search` — Full-text search
+  - `/api/v1/graph` — Knowledge graph operations
+  - `/api/v1/doctor/diagnose` — Wiki audit
+  - `/api/v1/digest` — Digest generation
+  - `/api/v1/sources` — Source monitoring
+- **API schemas**: Pydantic models for all requests/responses
+- **API router**: Clean v1 router aggregation
+
+#### Phase 5: CLI Layer
+- **7 Typer commands**: status, doctor, sync, graph, digest, monitor, page
+- **Full integration**: CLI commands use application services
+- **Error handling**: User-friendly error messages
+
+#### Phase 6: Testing
+- **47 tests passing** across domain layer
+- **Bug fixes**: fix_sha256 (returns False when no sha256), fix_wikilinks (converts all [[Page Title]] → [[page-title]])
+- Test coverage: index, integrity, monitor, page modules
+
+#### Phase 7: Documentation
+- **docs/api.md**: Full REST API documentation (8 endpoints, request/response examples)
+- **docs/usage.md**: Usage guide with CLI examples, API usage, automation patterns
+
+#### Phase 8: Integration
+- **Backend**: FastAPI entry point with CORS, v1 router, health endpoint
+- **Frontend** (React + Vite + Tailwind + Cytoscape):
+  - `services/api.js`: Full OSLW API client (12 endpoints)
+  - `components/Dashboard.jsx`: Stats, health, recent pages, quick actions
+  - `components/Pages.jsx`: CRUD for wiki pages with filters
+  - `components/Search.jsx`: Full-text search with type filter
+  - `components/Graph.jsx`: Interactive Cytoscape knowledge graph
+  - `components/Tools.jsx`: Tool management (Doctor, Graph, Digest, Sources)
+  - `components/Settings.jsx`: System configuration display
+  - `App.jsx`: Unified tab navigation, lazy loading
+
+#### Phase 9: Cleanup
+- Removed dead directories: `.processed/`, `migrations/`, `scripts/`
+- Removed stale frontend: `frontend/src/app/`, `hooks/`, `store/`
+- Removed empty test dirs: `tests/api/`, `tests/application/`
+- Removed brace artifacts: `src/oslw/api/{v1/`, `infrastructure/{repositories/`
+- Removed 12 empty .log files and all __pycache__ directories
+
 ### Changed
 
 #### Architecture — Complete Separation from wiki_app
