@@ -21,7 +21,7 @@ from typing import Optional
 from oslw.config.logging import get_logger
 from oslw.domain.wiki.index import WikiIndex, IndexEntry
 from oslw.infrastructure.database import FileManager
-from oslw.core.exceptions import IndexError
+from oslw.core.exceptions import WikiIndexError
 
 logger = get_logger("application.index_service")
 
@@ -94,7 +94,7 @@ class IndexService:
         loaded = self.index.load()
 
         if not loaded:
-            raise IndexError("Failed to rebuild index")
+            raise WikiIndexError("Failed to rebuild index")
 
         logger.info("Rebuilt index with %d entries", len(self.index.entries))
         return len(self.index.entries)

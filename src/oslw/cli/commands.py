@@ -533,5 +533,125 @@ def page(
         raise typer.Exit(1)
 
 
+@cli.command()
+def cron(
+    wiki_root: Path = typer.Option(
+        None, "--wiki-root", "-r",
+        help="Path to wiki root directory",
+    ),
+    list: bool = typer.Option(
+        False, "--list", "-l",
+        help="List all cron jobs",
+    ),
+    run: str = typer.Option(
+        None, "--run", "-r",
+        help="Run a specific cron job (doctor, graph, digest, sources, quality, index)",
+    ),
+    run_all: bool = typer.Option(
+        False, "--run-all",
+        help="Run all enabled cron jobs",
+    ),
+):
+    """Manage cron jobs."""
+    s = _get_settings(wiki_root)
+    setup_logging(s)
+    logger = get_logger("cli.cron")
+
+    try:
+        from oslw.cron.scheduler import CronScheduler
+        from oslw.cron.jobs import (
+            DoctorJob,
+            GraphJob,
+            DigestJob,
+            SourcesJob,
+            QualityJob,
+            IndexJob,
+        )
+
+        scheduler = CronScheduler()
+
+        # Register jobs
+        scheduler.register(
+            "doctor",
+            DoctorService(wiki_root=s.wiki_root).diagnose,
+            interval=3600,
+            enabled=True,
+            fix_sha256=True,
+            fix_wikilinks=True,
+        )
+        scheduler.register(
+            "graph",
+            GraphService(wiki_root=s.wiki_root).generate_graph,
+            interval=7200,
+            enabled=True,
+        )
+        scheduler.register(
+            "digest",
+            DigestService(wiki_root=s.wiki_root).generate_digest,
+            interval=86400,
+            enabled=True,
+            hours=24,
+            format="markdown",
+        )
+        scheduler.register(
+            "sources",
+            SourceService(wiki_root=s.wiki_root).check_sources,
+            interval=3600,
+            enabled=True,
+        )
+        scheduler.register(
+            "quality",
+            QualityService(wiki_root=s.wiki_root).run_quality_check,
+            interval=14400,
+            enabled=True,
+        )
+        scheduler.register(
+            "index",
+            IndexService(wiki_root=s.wiki_root).rebuild_index,
+            interval=1800,
+            enabled=True,
+        )
+
+        if list:
+            typer.echo(f"📋 Cron Jobs:")
+            for job in scheduler.list_jobs():
+                status = "✅" if job["enabled"] else "❌"
+                typer.echo(f"   {status} {job['name']} (every {job['interval']}s)")
+                if job["last_run"]:
+                    typer.echo(f"      Last run: {job['last_run']}")
+                if job["last_error"]:
+                    typer.echo(f"      Error: {job['last_error']}")
+            raise typer.Exit(0)
+
+        if run:
+            typer.echo(f"▶️  Running job: {run}")
+            result = await scheduler.run_job(run)
+            typer.echo(f"   Status: {result.get('status')}")
+            if result.get("error"):
+                typer.echo(f"   Error: {result['error']}")
+            if result.get("result"):
+                if isinstance(result["result"], dict):
+                    for key, value in result["result"].items():
+                        typer.echo(f"   {key}: {value}")
+            raise typer.Exit(0)
+
+        if run_all:
+            typer.echo(f"▶️  Running all jobs...")
+            results = await scheduler.run_all()
+            typer.echo(f"\n📊 Results:")
+            for result in results:
+                status_icon = "✅" if result.get("status") == "success" else "❌"
+                typer.echo(f"   {status_icon} {result['name']}: {result.get('status')}")
+            raise typer.Exit(0)
+
+        typer.echo(f"❌ Provide --list, --run, or --run-all")
+        raise typer.Exit(1)
+
+    except Exception as e:
+        logger.error("Error managing cron: %s", str(e))
+        typer.echo(f"❌ Error: {str(e)}")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     cli()

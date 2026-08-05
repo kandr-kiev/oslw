@@ -71,3 +71,26 @@ class DigestError(OslwError):
 
 class IngestError(OslwError):
     """Content ingestion errors."""
+
+
+class ValidationError(OslwError):
+    """Validation errors."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
+class WikiIndexError(OslwError):
+    """Wiki index errors."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
+class FileManagerError(OslwError):
+    """File management errors."""
+
+    def __init__(self, path: str, reason: str):
+        self.path = path
+        self.reason = reason
+        super().__init__(f"File management error ({path}): {reason}")

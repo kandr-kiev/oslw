@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 from oslw.config.logging import get_logger
-from oslw.domain.quality.doctor import WikiDoctor, DoctorReport
+from oslw.domain.quality.doctor import WikiDoctor, DiagnosisResult
 from oslw.domain.quality.lint import PageLint
 from oslw.domain.quality.cleanup import Deduplication
 from oslw.infrastructure.database import FileManager
