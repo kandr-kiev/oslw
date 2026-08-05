@@ -237,7 +237,10 @@ class PageIntegrity:
         return broken
 
     def fix_sha256(self, file_path: str | Path) -> bool:
-        """Fix SHA256 hash in frontmatter.
+        """Update SHA256 hash in frontmatter if it exists.
+
+        Only updates existing sha256 values. Returns False when
+        no sha256 is present (does not add new ones).
 
         Args:
             file_path: Path to markdown file
@@ -250,7 +253,6 @@ class PageIntegrity:
             return False
 
         text = path.read_text(encoding="utf-8")
-        new_hash = self.compute_sha256(path)
 
         # Check if frontmatter exists
         if not text.startswith("---"):
@@ -264,21 +266,14 @@ class PageIntegrity:
         frontmatter = parts[1]
         content = parts[2]
 
-        # Update or add sha256
+        # Only update existing sha256, don't add new ones
         sha256_pattern = re.compile(r'^sha256:\s*\S+', re.MULTILINE)
-        if sha256_pattern.search(frontmatter):
-            frontmatter = sha256_pattern.sub(f"sha256: {new_hash}", frontmatter)
-        else:
-            # Add sha256 after title
-            title_pattern = re.compile(r'^(title:\s*.+)', re.MULTILINE)
-            if title_pattern.search(frontmatter):
-                frontmatter = title_pattern.sub(
-                    rf"\1\nsha256: {new_hash}",
-                    frontmatter,
-                    count=1,
-                )
-            else:
-                frontmatter = f"sha256: {new_hash}\n{frontmatter}"
+        if not sha256_pattern.search(frontmatter):
+            logger.info("No sha256 in %s, skipping", path)
+            return False
+
+        new_hash = self.compute_sha256(path)
+        frontmatter = sha256_pattern.sub(f"sha256: {new_hash}", frontmatter)
 
         new_text = f"---\n{frontmatter}\n---\n{content}"
         path.write_text(new_text, encoding="utf-8")
@@ -288,11 +283,14 @@ class PageIntegrity:
     def fix_wikilinks(self, file_path: str | Path) -> int:
         """Fix broken wikilinks by converting to proper slug format.
 
+        Converts [[Page Title]] → [[page-title]], normalizing
+        spaces and special characters to valid slug format.
+
         Args:
             file_path: Path to markdown file
 
         Returns:
-            Number of links fixed
+            Number of links converted to slug format
         """
         path = Path(file_path)
         if not path.exists():
@@ -316,7 +314,7 @@ class PageIntegrity:
             slug = re.sub(r'-+', '-', slug)
             slug = slug.strip("-")
 
-            if slug and self.resolve_wikilink(slug):
+            if slug:
                 fixed += 1
                 return f"[[{slug}]]"
 
