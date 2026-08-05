@@ -1,30 +1,31 @@
-"""OSLW Cron Tasks — scheduled jobs for wiki maintenance.
+"""OSLW Cron Jobs — scheduled task functions.
 
-Cron jobs:
-- doctor: Run wiki integrity checks and repairs
-- graph: Rebuild knowledge graph
-- digest: Generate daily digest
-- sources: Monitor content sources
-- quality: Run linting and deduplication
-- index: Rebuild index.md
+These functions are executed by the system cron (Hermes cron / systemd / crontab).
+OSLW does NOT include an internal scheduler — scheduling is handled externally.
+
+Available jobs:
+- doctor_job: Run wiki integrity checks and repairs
+- graph_job: Rebuild knowledge graph
+- digest_job: Generate daily digest
+- sources_job: Monitor content sources
+- quality_job: Run linting and deduplication
+- index_job: Rebuild index.md
 """
 
-from oslw.cron.scheduler import CronScheduler
 from oslw.cron.jobs import (
-    DoctorJob,
-    GraphJob,
-    DigestJob,
-    SourcesJob,
-    QualityJob,
-    IndexJob,
+    doctor_job,
+    graph_job,
+    digest_job,
+    sources_job,
+    quality_job,
+    index_job,
 )
 
 __all__ = [
-    "CronScheduler",
-    "DoctorJob",
-    "GraphJob",
-    "DigestJob",
-    "SourcesJob",
-    "QualityJob",
-    "IndexJob",
+    "doctor_job",
+    "graph_job",
+    "digest_job",
+    "sources_job",
+    "quality_job",
+    "index_job",
 ]
