@@ -92,7 +92,6 @@ oslw/
 ├── frontend/          # Next.js 15 (App Router)
 ├── tests/             # Pytest tests
 ├── docs/              # MkDocs documentation
-└── scripts/           # Deployment scripts
 ```
 
 ## 🧪 Тести
