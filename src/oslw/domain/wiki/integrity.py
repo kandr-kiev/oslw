@@ -237,16 +237,16 @@ class PageIntegrity:
         return broken
 
     def fix_sha256(self, file_path: str | Path) -> bool:
-        """Update SHA256 hash in frontmatter if it exists.
+        """Update or add SHA256 hash in frontmatter.
 
-        Only updates existing sha256 values. Returns False when
-        no sha256 is present (does not add new ones).
+        If a sha256 value already exists, it is updated.
+        If no sha256 is present, one is added after the title.
 
         Args:
             file_path: Path to markdown file
 
         Returns:
-            True if hash was updated, False if no change needed
+            True if hash was added/updated, False if no change needed
         """
         path = Path(file_path)
         if not path.exists():
@@ -266,14 +266,23 @@ class PageIntegrity:
         frontmatter = parts[1]
         content = parts[2]
 
-        # Only update existing sha256, don't add new ones
-        sha256_pattern = re.compile(r'^sha256:\s*\S+', re.MULTILINE)
-        if not sha256_pattern.search(frontmatter):
-            logger.info("No sha256 in %s, skipping", path)
-            return False
-
         new_hash = self.compute_sha256(path)
-        frontmatter = sha256_pattern.sub(f"sha256: {new_hash}", frontmatter)
+
+        # Update or add sha256
+        sha256_pattern = re.compile(r'^sha256:\s*\S+', re.MULTILINE)
+        if sha256_pattern.search(frontmatter):
+            frontmatter = sha256_pattern.sub(f"sha256: {new_hash}", frontmatter)
+        else:
+            # Add sha256 after title
+            title_pattern = re.compile(r'^(title:\s*.+)', re.MULTILINE)
+            if title_pattern.search(frontmatter):
+                frontmatter = title_pattern.sub(
+                    rf"\1\nsha256: {new_hash}",
+                    frontmatter,
+                    count=1,
+                )
+            else:
+                frontmatter = f"sha256: {new_hash}\n{frontmatter}"
 
         new_text = f"---\n{frontmatter}\n---\n{content}"
         path.write_text(new_text, encoding="utf-8")

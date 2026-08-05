@@ -99,8 +99,8 @@ No wikilinks here.
         assert result.sha256_match is True
         assert len(result.broken_links) >= 0  # May have broken links
 
-    def test_check_sha256_fix(self, temp_wiki_root):
-        """Test fixing SHA256 in frontmatter."""
+    def test_check_sha256_fix_adds_hash(self, temp_wiki_root):
+        """Test fixing SHA256 in frontmatter — adds hash when missing."""
         content = """---
 title: Test
 slug: test
@@ -113,8 +113,13 @@ Content here
         integrity = PageIntegrity(temp_wiki_root)
         fixed = integrity.fix_sha256(page_path)
 
-        # Should return False (no SHA256 to fix)
-        assert fixed is False
+        # Should return True and add sha256
+        assert fixed is True
+        new_content = page_path.read_text()
+        assert "sha256:" in new_content
+        extracted = integrity.extract_sha256(page_path)
+        assert extracted is not None
+        assert len(extracted) == 64
 
     def test_fix_wikilinks(self, temp_wiki_root):
         """Test fixing broken wikilinks."""

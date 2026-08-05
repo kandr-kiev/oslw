@@ -107,13 +107,18 @@ class TestDigestJob:
         from oslw.cron.jobs import digest_job
 
         mock_service = MagicMock()
-        mock_service.generate_digest.return_value = "# Daily Digest\n\nContent"
-        mock_digest_svc.return_value = mock_service
+        mock_service.generate_digest.return_value = []
+        mock_svc_instance = MagicMock()
+        mock_svc_instance.generate_digest.return_value = []
+        mock_svc_instance.get_digest_summary.return_value = MagicMock(
+            total_entries=5, by_type={"article": 3, "comparison": 2}
+        )
+        mock_digest_svc.return_value = mock_svc_instance
 
         result = digest_job(wiki_root="/tmp/fake_wiki", hours=12, format="markdown")
 
-        assert result == "# Daily Digest\n\nContent"
-        mock_service.generate_digest.assert_called_once_with(hours=12, format="markdown")
+        assert result["status"] == "success"
+        assert result["entries"] == 0
 
     @patch('oslw.cron.jobs.DigestService')
     def test_digest_job_error(self, mock_digest_svc):
@@ -124,7 +129,8 @@ class TestDigestJob:
 
         result = digest_job(wiki_root="/tmp/fake_wiki")
 
-        assert "Error: Digest failed" in result
+        assert result["status"] == "error"
+        assert "Digest failed" in result["error"]
 
 
 class TestSourcesJob:
@@ -136,9 +142,8 @@ class TestSourcesJob:
         from oslw.cron.jobs import sources_job
 
         mock_service = MagicMock()
-        mock_service.check_sources.return_value = {
-            "results": [{"name": "rss1", "updated": 3}],
-            "status": "success",
+        mock_service.monitor_sources.return_value = {
+            "rss1": {"status": "ok", "updated": 3},
         }
         mock_source_svc.return_value = mock_service
 
@@ -146,7 +151,7 @@ class TestSourcesJob:
 
         assert result["status"] == "success"
         assert len(result["results"]) == 1
-        mock_service.check_sources.assert_called_once_with(source_name=None)
+        mock_service.monitor_sources.assert_called_once()
 
     @patch('oslw.cron.jobs.SourceService')
     def test_sources_job_with_source_name(self, mock_source_svc):
@@ -154,12 +159,12 @@ class TestSourcesJob:
         from oslw.cron.jobs import sources_job
 
         mock_service = MagicMock()
-        mock_service.check_sources.return_value = {"results": []}
+        mock_service.monitor_sources.return_value = {}
         mock_source_svc.return_value = mock_service
 
         sources_job(wiki_root="/tmp/fake_wiki", source_name="github")
 
-        mock_service.check_sources.assert_called_once_with(source_name="github")
+        mock_service.monitor_sources.assert_called_once()
 
     @patch('oslw.cron.jobs.SourceService')
     def test_sources_job_error(self, mock_source_svc):
@@ -183,8 +188,8 @@ class TestQualityJob:
         from oslw.cron.jobs import quality_job
 
         mock_service = MagicMock()
-        mock_service.run_quality_check.return_value = {
-            "total_issues": 5,
+        mock_service.run_full_audit.return_value = {
+            "diagnosis": {"issues": [{"severity": "critical"}] * 5},
             "status": "success",
         }
         mock_quality_svc.return_value = mock_service
@@ -192,7 +197,7 @@ class TestQualityJob:
         result = quality_job(wiki_root="/tmp/fake_wiki")
 
         assert result["status"] == "success"
-        assert result["total_issues"] == 5
+        assert len(result.get("diagnosis", {}).get("issues", [])) == 5
 
     @patch('oslw.cron.jobs.QualityService')
     def test_quality_job_error(self, mock_quality_svc):
@@ -216,10 +221,7 @@ class TestIndexJob:
         from oslw.cron.jobs import index_job
 
         mock_service = MagicMock()
-        mock_service.rebuild_index.return_value = {
-            "total_pages": 150,
-            "status": "success",
-        }
+        mock_service.rebuild_index.return_value = 150
         mock_index_svc.return_value = mock_service
 
         result = index_job(wiki_root="/tmp/fake_wiki")

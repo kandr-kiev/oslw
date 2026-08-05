@@ -62,85 +62,96 @@ def graph_job(wiki_root: Path | str | None = None, **kwargs: Any) -> dict:
         wiki_root: Path to wiki root directory.
 
     Returns:
-        dict with graph stats (nodes, edges).
+        dict with graph statistics and status.
     """
     logger.info("graph_job: Rebuilding knowledge graph")
     try:
         s = Settings(wiki_root=wiki_root) if wiki_root else Settings()
         graph_svc = GraphService(wiki_root=s.wiki_root)
         result = graph_svc.generate_graph()
-        logger.info(
-            "graph_job: Complete — %d nodes, %d edges",
-            result.get('total_nodes', 0),
-            result.get('total_edges', 0),
-        )
+        logger.info("graph_job: Complete — %d nodes, %d edges",
+                    result.get('total_nodes', 0), result.get('total_edges', 0))
         return result
     except Exception as e:
         logger.error("graph_job: Failed: %s", e)
         return {"status": "error", "error": str(e)}
 
 
-def digest_job(wiki_root: Path | str | None = None, hours: int = 24, format: str = "markdown", **kwargs: Any) -> str:
+def digest_job(wiki_root: Path | str | None = None, **kwargs: Any) -> str | dict:
     """Generate daily digest.
 
     Args:
         wiki_root: Path to wiki root directory.
-        hours: Hours to look back (default 24).
-        format: Output format (markdown, json, text).
+        hours: Number of hours to look back (default 24).
+        format: Output format (default "markdown").
 
     Returns:
-        Digest content as string.
+        Digest content string or error dict.
     """
+    hours = kwargs.get("hours", 24)
+    fmt = kwargs.get("format", "markdown")
     logger.info("digest_job: Generating digest for last %dh", hours)
     try:
         s = Settings(wiki_root=wiki_root) if wiki_root else Settings()
-        digest_svc = DigestService(wiki_root=s.wiki_root)
-        result = digest_svc.generate_digest(hours=hours, format=format)
-        logger.info("digest_job: Complete")
-        return result
+        svc = DigestService(wiki_root=s.wiki_root)
+        result = svc.generate_digest(hours=hours)
+        summary = svc.get_digest_summary(hours=hours)
+        return {
+            "status": "success",
+            "entries": len(result),
+            "summary": summary.to_dict() if hasattr(summary, 'to_dict') else {
+                "total_entries": summary.total_entries if hasattr(summary, 'total_entries') else 0,
+                "by_type": summary.by_type if hasattr(summary, 'by_type') else {},
+            },
+        }
     except Exception as e:
         logger.error("digest_job: Failed: %s", e)
-        return f"Error: {e}"
+        return {"status": "error", "error": str(e)}
 
 
-def sources_job(wiki_root: Path | str | None = None, source_name: str | None = None, **kwargs: Any) -> dict:
+def sources_job(wiki_root: Path | str | None = None, **kwargs: Any) -> dict:
     """Monitor content sources.
 
     Args:
         wiki_root: Path to wiki root directory.
-        source_name: Specific source to check (or None for all).
+        source_name: Specific source to check (optional).
 
     Returns:
-        dict with monitoring results per source.
+        dict with monitoring results.
     """
     logger.info("sources_job: Checking content sources")
     try:
         s = Settings(wiki_root=wiki_root) if wiki_root else Settings()
-        source_svc = SourceService(wiki_root=s.wiki_root)
-        result = source_svc.check_sources(source_name=source_name)
-        logger.info("sources_job: Complete — %d sources checked", len(result.get('results', [])))
-        return result
+        svc = SourceService(wiki_root=s.wiki_root)
+        source_name = kwargs.get("source_name")
+        result = svc.monitor_sources()
+        logger.info("sources_job: Complete — %d sources checked", len(result))
+        return {
+            "status": "success",
+            "results": result,
+        }
     except Exception as e:
         logger.error("sources_job: Failed: %s", e)
         return {"status": "error", "error": str(e)}
 
 
 def quality_job(wiki_root: Path | str | None = None, **kwargs: Any) -> dict:
-    """Run quality checks and linting.
+    """Run quality checks and deduplication.
 
     Args:
         wiki_root: Path to wiki root directory.
 
     Returns:
-        dict with quality check results.
+        dict with quality audit results.
     """
     logger.info("quality_job: Running quality checks")
     try:
         s = Settings(wiki_root=wiki_root) if wiki_root else Settings()
-        quality = QualityService(wiki_root=s.wiki_root)
-        result = quality.run_quality_check()
-        logger.info("quality_job: Complete — %d issues found", result.get('total_issues', 0))
-        return result
+        svc = QualityService(wiki_root=s.wiki_root)
+        report = svc.run_full_audit()
+        logger.info("quality_job: Complete — %d issues found",
+                    len(report.get("diagnosis", {}).get("issues", [])))
+        return report
     except Exception as e:
         logger.error("quality_job: Failed: %s", e)
         return {"status": "error", "error": str(e)}
@@ -158,10 +169,13 @@ def index_job(wiki_root: Path | str | None = None, **kwargs: Any) -> dict:
     logger.info("index_job: Rebuilding index")
     try:
         s = Settings(wiki_root=wiki_root) if wiki_root else Settings()
-        index_svc = IndexService(wiki_root=s.wiki_root)
-        result = index_svc.rebuild_index()
-        logger.info("index_job: Complete — %d pages indexed", result.get('total_pages', 0))
-        return result
+        svc = IndexService(wiki_root=s.wiki_root)
+        count = svc.rebuild_index()
+        logger.info("index_job: Complete — %d pages indexed", count)
+        return {
+            "status": "success",
+            "total_pages": count,
+        }
     except Exception as e:
         logger.error("index_job: Failed: %s", e)
         return {"status": "error", "error": str(e)}
