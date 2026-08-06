@@ -26,7 +26,7 @@ def get_services(settings: Settings = Depends(get_settings)):
     summary="Search wiki",
     description="Search wiki pages by query",
 )
-async def search_wiki(
+def search_wiki(
     request: SearchRequest,
     services: tuple = Depends(get_services),
 ) -> SearchResponse:
@@ -36,10 +36,10 @@ async def search_wiki(
         query = request.query
 
         # Search in index
-        index_hits = await index_service.search_index(query)
+        index_hits = index_service.search_index(query)
 
         # Search in graph
-        graph_results = await graph_service.search(query, depth=1, limit=request.limit)
+        graph_results = graph_service.search(query, depth=1, limit=request.limit)
 
         # Combine results (deduplicate by slug)
         seen_slugs = set()

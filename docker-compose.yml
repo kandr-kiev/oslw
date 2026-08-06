@@ -1,0 +1,91 @@
+# OSLW Wiki — Docker Compose
+# Повноцінна веб-система з бекендом та UI
+# Запуск: docker compose up --build
+
+services:
+  # ==========================================================================
+  # Backend — FastAPI API сервер
+  # ==========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: oslw-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # Windows localhost:8000 → Container:8000
+    volumes:
+      # Монтуємо джерела для hot-reload
+      - ./src:/app/src
+      # Монтуємо wiki — єдине джерело істини
+      - /workspace/llm-wiki:/workspace/llm-wiki
+      # Кеш Python (швидший перезапуск)
+      - python-cache:/app/.cache
+    environment:
+      - OSLW_API_HOST=0.0.0.0
+      - OSLW_API_PORT=8000
+      - OSLW_WIKI_ROOT=/workspace/llm-wiki
+      - OSLW_DEBUG=true
+      - OSLW_LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - oslw-network
+
+  # ==========================================================================
+  # Frontend — Vite + React (dev mode з hot-reload)
+  # ==========================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: oslw-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"  # Windows localhost:5173 → Container:5173
+    volumes:
+      # Монтуємо фронтенд для hot-reload
+      - ./frontend:/app
+      # Кеш npm (швидший перезапуск)
+      - node-modules:/app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_HOST=0.0.0.0
+      - VITE_PORT=5173
+      - NODE_ENV=development
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - oslw-network
+
+  # ==========================================================================
+  # Nginx — Reverse Proxy для продакшену
+  # ==========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: oslw-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"  # Windows localhost:80 → Nginx:80
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Продакшен фронтенд (збирається окремо)
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    networks:
+      - oslw-network
+
+networks:
+  oslw-network:
+    driver: bridge
+    name: oslw-network
+
+volumes:
+  python-cache:
+  node-modules:

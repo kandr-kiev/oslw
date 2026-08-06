@@ -61,6 +61,29 @@ class Deduplication:
         """
         self.wiki_root = Path(wiki_root)
 
+    def find_duplicates(self) -> list[DuplicateGroup]:
+        """Find all duplicates using all detection methods.
+
+        Returns:
+            Combined list of DuplicateGroup from all methods
+        """
+        wiki_dir = self.wiki_root / "wiki"
+        if not wiki_dir.exists():
+            logger.warning("Wiki directory not found: %s", wiki_dir)
+            return []
+
+        # Run all three detection methods
+        suffix_groups = self.find_duplicates_by_suffix(wiki_dir)
+        sha_groups = self.find_duplicates_by_sha256(wiki_dir)
+        sim_groups = self.find_duplicates_by_similarity(wiki_dir)
+
+        all_groups = suffix_groups + sha_groups + sim_groups
+        logger.info(
+            "Found %d duplicate groups (suffix: %d, sha256: %d, similarity: %d)",
+            len(all_groups), len(suffix_groups), len(sha_groups), len(sim_groups),
+        )
+        return all_groups
+
     def find_duplicates_by_suffix(self, dir_path: str | Path) -> list[DuplicateGroup]:
         """Find duplicates by _N suffix pattern.
 
@@ -241,48 +264,52 @@ class Deduplication:
         )
         return groups
 
-    def cleanup_duplicates(self, dir_path: str | Path) -> list[str]:
+    def cleanup_duplicates(self, dry_run: bool = True) -> list[str]:
         """Remove duplicate files.
 
         Args:
-            dir_path: Directory to clean up
+            dry_run: If True, only report what would be deleted
 
         Returns:
-            List of removed file paths
+            List of removed/would-be-removed file paths
         """
-        path = Path(dir_path)
-        if not path.exists():
+        wiki_dir = self.wiki_root / "wiki"
+        if not wiki_dir.exists():
+            logger.warning("Wiki directory not found: %s", wiki_dir)
             return []
 
         # Find by suffix
-        suffix_groups = self.find_duplicates_by_suffix(path)
+        suffix_groups = self.find_duplicates_by_suffix(wiki_dir)
         removed = []
 
         for group in suffix_groups:
-            base_file = path / f"{group.base_slug}.md"
+            base_file = wiki_dir / f"{group.base_slug}.md"
             if base_file.exists():
                 # Delete all _N versions
                 for dup in group.duplicates:
-                    dup_file = path / f"{dup}.md"
+                    dup_file = wiki_dir / f"{dup}.md"
                     if dup_file.exists():
-                        dup_file.unlink()
+                        if not dry_run:
+                            dup_file.unlink()
+                            logger.info("Removed duplicate: %s", dup_file)
                         removed.append(str(dup_file))
-                        logger.info("Removed duplicate: %s", dup_file)
             else:
                 # Keep highest _N, delete rest
-                versions = [p for p in path.glob(f"{group.base_slug}_*.md")]
+                versions = [p for p in wiki_dir.glob(f"{group.base_slug}_*.md")]
                 versions.sort(key=lambda p: int(re.search(r'_(\d+)$', p.stem).group(1)))
                 if len(versions) > 1:
                     keep = versions[-1]
                     for v in versions[:-1]:
-                        v.unlink()
+                        if not dry_run:
+                            v.unlink()
+                            logger.info("Removed duplicate: %s", v)
                         removed.append(str(v))
-                        logger.info("Removed duplicate: %s", v)
 
                     # Rename highest to base
                     if keep.name != f"{group.base_slug}.md":
-                        keep.rename(path / f"{group.base_slug}.md")
+                        if not dry_run:
+                            keep.rename(wiki_dir / f"{group.base_slug}.md")
+                            logger.info("Renamed %s -> %s.md", keep, group.base_slug)
                         removed.append(str(keep))
-                        logger.info("Renamed %s -> %s.md", keep, group.base_slug)
 
         return removed

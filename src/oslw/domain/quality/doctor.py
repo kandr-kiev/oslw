@@ -218,7 +218,7 @@ class WikiDoctor:
 
                 # Check if linked file exists
                 patterns = [
-                    wiki_dir / "concepts" / f"{link}.md",
+                    wiki_dir / "concept" / f"{link}.md",
                     wiki_dir / "comparisons" / f"{link}.md",
                     wiki_dir / "playbooks" / f"{link}.md",
                     wiki_dir / "synthesis" / f"{link}.md",

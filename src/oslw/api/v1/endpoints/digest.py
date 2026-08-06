@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional
 
 from oslw.api.v1.schemas import DigestResponse
-from oslw.api.deps import get_settings
+from oslw.api.deps import get_settings, get_api_key
 from oslw.config.settings import Settings
 from oslw.application import DigestService
 from oslw.config.logging import get_logger
@@ -27,14 +27,14 @@ def get_digest_service(settings: Settings = Depends(get_settings)) -> DigestServ
     summary="Today's digest",
     description="Get today's newspaper digest",
 )
-async def get_today_digest(
+def get_today_digest(
     hours: int = Query(24, ge=1, le=168, description="Hours to look back"),
     digest_service: DigestService = Depends(get_digest_service),
 ) -> DigestResponse:
     """Get today's newspaper digest."""
     try:
-        summary = await digest_service.get_digest_summary(hours=hours)
-        entries = await digest_service.get_recent_entries(limit=100, hours=hours)
+        summary = digest_service.get_digest_summary(hours=hours)
+        entries = digest_service.get_recent_entries(limit=100, hours=hours)
 
         return DigestResponse(
             date=summary.generated_at,
@@ -61,14 +61,15 @@ async def get_today_digest(
     summary="Generate digest",
     description="Generate a digest for specified period",
 )
-async def generate_digest(
+def generate_digest(
     hours: int = Query(24, ge=1, le=168),
     digest_service: DigestService = Depends(get_digest_service),
+    api_key: str = Depends(get_api_key),
 ) -> DigestResponse:
     """Generate a digest."""
     try:
-        summary = await digest_service.get_digest_summary(hours=hours)
-        entries = await digest_service.get_recent_entries(limit=100, hours=hours)
+        summary = digest_service.get_digest_summary(hours=hours)
+        entries = digest_service.get_recent_entries(limit=100, hours=hours)
 
         return DigestResponse(
             date=summary.generated_at,

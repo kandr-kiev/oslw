@@ -221,19 +221,143 @@ class SourceMonitor:
     def monitor_all(self) -> dict:
         """Monitor all configured sources for updates.
 
+        Fetches content from each source using the appropriate scanner,
+        ingests new articles into raw/, and updates source statistics.
+
         Returns:
             Dictionary with monitoring results per source
         """
+        from oslw.domain.sources.scanners import RSSScanner, GitHubScanner, HuggingFaceScanner, YouTubeScanner
+        from oslw.domain.sources.ingest import ContentIngestor
+
         results = {}
+        ingestor = ContentIngestor(wiki_root=self.wiki_root)
+
         for name, source in self._sources.items():
             if not source.enabled:
                 continue
             try:
-                # Placeholder: in production, this would fetch from the source
-                # For now, just record the check timestamp
+                articles = self._fetch_source(source)
+                new_count = 0
+
+                # Ingest each article
+                for article in articles:
+                    result = ingestor.ingest(
+                        title=article.title,
+                        content=article.content,
+                        source_url=article.url,
+                        tags=article.tags,
+                        source_name=article.source_name,
+                    )
+                    if result.success:
+                        new_count += 1
+
                 source.record_check(success=True)
-                results[name] = {"status": "ok", "updated": 0}
+                source.articles_count += new_count
+                self._save_sources()
+
+                results[name] = {
+                    "status": "ok",
+                    "updated": new_count,
+                    "total_fetched": len(articles),
+                }
+
             except Exception as e:
                 source.record_check(success=False, error=str(e))
-                results[name] = {"status": "error", "error": str(e)}
+                results[name] = {
+                    "status": "error",
+                    "error": str(e),
+                    "updated": 0,
+                }
+
         return results
+
+    def _fetch_source(self, source: SourceConfig) -> list:
+        """Fetch articles from a single source using the appropriate scanner.
+
+        Args:
+            source: SourceConfig to fetch from
+
+        Returns:
+            List of RawArticle objects
+        """
+        from oslw.domain.sources.scanners import RSSScanner, GitHubScanner, HuggingFaceScanner, YouTubeScanner
+
+        if source.type == SourceType.RSS:
+            scanner = RSSScanner()
+            return scanner.fetch(
+                url=source.url,
+                source_name=source.name,
+                tags=source.tags,
+                limit=20,
+            )
+
+        elif source.type == SourceType.GITHUB:
+            scanner = GitHubScanner()
+            return scanner.fetch(
+                repo=source.url,
+                source_name=source.name,
+                tags=source.tags,
+                limit=10,
+            )
+
+        elif source.type == SourceType.HUGGINGFACE:
+            scanner = HuggingFaceScanner()
+            return scanner.fetch(
+                source_name=source.name,
+                tags=source.tags,
+                limit=10,
+            )
+
+        elif source.type == SourceType.YOUTUBE:
+            scanner = YouTubeScanner()
+            return scanner.fetch(
+                channel_url=source.url,
+                source_name=source.name,
+                tags=source.tags,
+                limit=10,
+            )
+
+        elif source.type == SourceType.LOCAL:
+            # Local scanner: list files from a directory
+            return self._local_scan(source)
+
+        return []
+
+    def _local_scan(self, source: SourceConfig) -> list:
+        """Scan local directory for new files.
+
+        Args:
+            source: SourceConfig with url pointing to directory
+
+        Returns:
+            List of RawArticle objects
+        """
+        from oslw.domain.sources.scanners import RawArticle
+        import hashlib
+        from pathlib import Path
+
+        dir_path = Path(source.url)
+        if not dir_path.exists():
+            return []
+
+        articles = []
+        for md_file in dir_path.rglob("*.md"):
+            raw = md_file.read_text(encoding="utf-8")
+            content_hash = hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+            # Extract title from frontmatter or filename
+            title = md_file.stem.replace("-", " ").title()
+            slug = md_file.stem
+
+            articles.append(RawArticle(
+                title=title,
+                slug=slug,
+                content=raw,
+                url=str(md_file),
+                tags=source.tags,
+                source_name=source.name,
+                content_hash=content_hash,
+            ))
+
+        return articles

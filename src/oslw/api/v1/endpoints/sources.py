@@ -11,7 +11,7 @@ from oslw.api.v1.schemas import (
     SourceCheckRequest,
     SourceInfo,
 )
-from oslw.api.deps import get_settings
+from oslw.api.deps import get_settings, get_api_key
 from oslw.config.settings import Settings
 from oslw.application import SourceService
 from oslw.config.logging import get_logger
@@ -31,12 +31,12 @@ def get_source_service(settings: Settings = Depends(get_settings)) -> SourceServ
     summary="List monitored sources",
     description="Get all configured source monitors",
 )
-async def list_sources(
+def list_sources(
     source_service: SourceService = Depends(get_source_service),
 ) -> SourceListResponse:
     """List all configured sources."""
     try:
-        stats = await source_service.list_sources()
+        stats = source_service.list_sources()
 
         sources = [
             SourceInfo(
@@ -64,13 +64,14 @@ async def list_sources(
     summary="Check sources",
     description="Trigger a check of source monitors",
 )
-async def check_sources(
+def check_sources(
     request: SourceCheckRequest,
     source_service: SourceService = Depends(get_source_service),
+    api_key: str = Depends(get_api_key),
 ) -> dict:
     """Check sources for new content."""
     try:
-        results = await source_service.monitor_sources()
+        results = source_service.monitor_sources()
 
         return {
             "success": True,

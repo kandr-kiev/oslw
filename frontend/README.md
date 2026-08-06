@@ -1,16 +1,69 @@
-# React + Vite
+# OSLW Wiki Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Перша версія фронтенду для перегляду wiki сторінок OSLW.
 
-Currently, two official plugins are available:
+## Структура
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```
+frontend/
+├── index.html      # Головна сторінка SPA
+├── css/
+│   └── style.css   # Стилі (темна тема)
+├── js/
+│   └── app.js      # JavaScript логіка
+└── README.md       # Цей файл
+```
 
-## React Compiler
+## Можливості
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 📚 **Перегляд списку сторінок** — пагінація, фільтрація за категорією
+- 🔍 **Пошук** — по всій wiki за ключовими словами
+- 📊 **Статистика** — кількість сторінок, типи, категорії, теги
+- 📄 **Детальний перегляд** — markdown рендеринг контенту
+- 🎨 **Темна тема** — оптимізована для довгої роботи
 
-## Expanding the Oxlint configuration
+## API Endpoints
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+| Endpoint | Метод | Опис |
+|----------|-------|------|
+| `/api/pages` | GET | Список сторінок (пагінація) |
+| `/api/pages/{slug}` | GET | Детальна інформація про сторінку |
+| `/api/stats` | GET | Статистика wiki |
+| `/api/search` | GET | Пошук сторінок |
+| `/health` | GET | Health check |
+| `/docs` | GET | Swagger UI (FastAPI) |
+
+## Запуск
+
+```bash
+# Через CLI
+python -m oslw.cli server --host 0.0.0.0 --port 8000
+
+# Безпосередньо
+cd /workspace/projects/oslw
+uvicorn oslw.api.main:app --host 0.0.0.0 --port 8000
+```
+
+## Доступ
+
+- **Frontend:** http://localhost:8000/
+- **API Docs:** http://localhost:8000/docs
+- **Health:** http://localhost:8000/health
+
+## Технічні деталі
+
+- **Vanilla JavaScript** — без фреймворків
+- **CSS Variables** — темна тема з CSS custom properties
+- **SPA Routing** — клієнтська навігація
+- **Async/Await** — асинхронні запити до API
+- **Responsive Design** — адаптивний дизайн
+
+## План розвитку
+
+- [ ] Markdown рендеринг з підсвіткою синтаксису
+- [ ] Історія перегляду
+- [ ] Сповіщення про оновлення
+- [ ] Експорт сторінок
+- [ ] Редагування сторінок
+- [ ] Категорії та теги з візуалізацією
+- [ ] PWA підтримка

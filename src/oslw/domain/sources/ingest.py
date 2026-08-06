@@ -128,6 +128,69 @@ class ContentIngestor:
 
         return result
 
+    def ingest_all(self, articles: list[dict]) -> dict:
+        """Ingest multiple raw articles into the wiki.
+
+        Batch ingestion with deduplication check. Skips articles
+        whose slug already exists in raw/.
+
+        Args:
+            articles: List of dicts with keys: title, content, source_url, tags, source_name
+
+        Returns:
+            Dictionary with success/failed counts and per-article results
+        """
+        results = {"ingested": 0, "skipped": 0, "failed": 0, "details": []}
+
+        for article in articles:
+            try:
+                slug = self._generate_slug(article["title"])
+                raw_path = self.raw_dir / f"{slug}.md"
+
+                # Skip if already exists (dedup)
+                if raw_path.exists():
+                    results["skipped"] += 1
+                    results["details"].append({
+                        "title": article["title"],
+                        "status": "skipped",
+                        "reason": "already exists",
+                    })
+                    continue
+
+                result = self.ingest(
+                    title=article["title"],
+                    content=article["content"],
+                    source_url=article.get("source_url", ""),
+                    tags=article.get("tags", []),
+                    source_name=article.get("source_name", ""),
+                )
+
+                if result.success:
+                    results["ingested"] += 1
+                else:
+                    results["failed"] += 1
+
+                results["details"].append({
+                    "title": article["title"],
+                    "status": "success" if result.success else "failed",
+                    "slug": result.slug,
+                    "errors": result.errors,
+                })
+
+            except Exception as e:
+                results["failed"] += 1
+                results["details"].append({
+                    "title": article.get("title", "unknown"),
+                    "status": "failed",
+                    "errors": [str(e)],
+                })
+
+        logger.info(
+            "ingest_all: ingested=%d, skipped=%d, failed=%d",
+            results["ingested"], results["skipped"], results["failed"],
+        )
+        return results
+
     def _generate_slug(self, title: str) -> str:
         """Generate URL-friendly slug from title.
 

@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 
 from oslw.api.v1.schemas import GraphResponse, GraphNode, GraphEdge
-from oslw.api.deps import get_settings
+from oslw.api.deps import get_settings, get_api_key
 from oslw.config.settings import Settings
 from oslw.application import GraphService
 from oslw.config.logging import get_logger
@@ -27,12 +27,12 @@ def get_graph_service(settings: Settings = Depends(get_settings)) -> GraphServic
     summary="Get knowledge graph",
     description="Get the wiki knowledge graph as nodes and edges",
 )
-async def get_graph(
+def get_graph(
     graph_service: GraphService = Depends(get_graph_service),
 ) -> GraphResponse:
     """Get the wiki knowledge graph."""
     try:
-        graph_dict = await graph_service.generate_graph()
+        graph_dict = graph_service.generate_graph()
 
         nodes = [
             GraphNode(
@@ -68,12 +68,12 @@ async def get_graph(
     summary="Generate graph",
     description="Regenerate the knowledge graph from wiki pages",
 )
-async def generate_graph(
+def generate_graph(
     graph_service: GraphService = Depends(get_graph_service),
 ) -> GraphResponse:
     """Generate the knowledge graph from wiki wikilinks."""
     try:
-        graph_dict = await graph_service.generate_graph()
+        graph_dict = graph_service.generate_graph()
 
         nodes = [
             GraphNode(

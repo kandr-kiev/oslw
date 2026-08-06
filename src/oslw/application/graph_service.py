@@ -83,19 +83,33 @@ class GraphService:
         self.generator = GraphGenerator(wiki_root=Path(wiki_root))
         self.query = GraphQuery(wiki_root=Path(wiki_root))
 
-    def generate_graph(self) -> dict:
+    def generate_graph(self, force: bool = False) -> dict:
         """Generate knowledge graph from wiki pages.
 
         Scans all wiki pages, extracts wikilinks,
-        and builds a directed graph.
+        and builds a directed graph. Uses cached graph if available.
+        Automatically exports to disk after generation.
+
+        Args:
+            force: If True, regenerate from scratch.
 
         Returns:
             Graph dictionary with nodes and edges
         """
-        graph = self.generator.generate()
-        logger.info("Generated graph: %d nodes, %d edges",
-                   len(graph.nodes), len(graph.edges))
-        return graph.to_dict()
+        graph = self.generator.generate(force=force)
+        # Handle both dict (cached) and object (generated) return types
+        if isinstance(graph, dict):
+            logger.info("Loaded cached graph: %d nodes, %d edges",
+                       len(graph.get("nodes", {})), len(graph.get("edges", [])))
+        else:
+            logger.info("Generated graph: %d nodes, %d edges",
+                       len(graph.nodes), len(graph.edges))
+            graph = graph.to_dict()
+
+        # Persist graph to disk
+        self.export_graph()
+
+        return graph
 
     def search(self, query: str, depth: int = 2,
                     limit: int = 10) -> SearchResults:
@@ -121,73 +135,68 @@ class GraphService:
             total=len(results),
         )
 
+    def _get_graph_dict(self, force: bool = False) -> dict:
+        """Get graph as a normalized dict (cached or regenerated)."""
+        result = self.generator.generate(force=force)
+        if isinstance(result, dict):
+            return result
+        return result.to_dict()
+
     def get_stats(self) -> GraphStats:
-        """Get graph statistics.
+        """Get graph statistics."""
+        graph = self._get_graph_dict()
 
-        Returns:
-            GraphStats with current statistics
-        """
-        graph = self.generator.generate()
+        nodes = graph.get("nodes", [])
+        edges = graph.get("edges", [])
 
-        # Count categories
-        categories = set(node.get("category", "unknown")
-                        for node in graph.nodes.values())
+        # Count categories (nodes is a list of dicts with 'type' or 'file_type')
+        categories = set()
+        for node in nodes:
+            cat = node.get("type", node.get("file_type", "unknown"))
+            categories.add(cat)
 
         # Calculate density
-        n = len(graph.nodes)
+        n = len(nodes)
         max_edges = n * (n - 1) if n > 1 else 1
-        density = len(graph.edges) / max_edges if max_edges > 0 else 0.0
+        density = len(edges) / max_edges if max_edges > 0 else 0.0
 
         return GraphStats(
-            nodes=len(graph.nodes),
-            edges=len(graph.edges),
+            nodes=n,
+            edges=len(edges),
             categories=len(categories),
             density=density,
         )
 
     def export_graph(self, output_path: Optional[str | Path] = None) -> Path:
-        """Export graph to JSON file.
-
-        Args:
-            output_path: Optional output path (defaults to graph-from-wiki.json)
-
-        Returns:
-            Path to exported file
-        """
+        """Export graph to JSON file."""
         if output_path is None:
             output_path = self.file_manager.wiki_root / "graph-from-wiki.json"
 
-        graph = self.generator.generate()
-        graph.to_json(output_path)
+        graph = self._get_graph_dict()
+        import json
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
 
         logger.info("Exported graph to %s", output_path)
         return Path(output_path)
 
     def get_node(self, slug: str) -> Optional[dict]:
-        """Get a single graph node by slug.
-
-        Args:
-            slug: Node slug
-
-        Returns:
-            Node dictionary if found, None otherwise
-        """
-        graph = self.generator.generate()
-        return graph.nodes.get(slug)
+        """Get a single graph node by slug."""
+        graph = self._get_graph_dict()
+        nodes = graph.get("nodes", [])
+        for node in nodes:
+            if node.get("id") == slug:
+                return node
+        return None
 
     def get_connections(self, slug: str) -> list[dict]:
-        """Get all connections for a node.
-
-        Args:
-            slug: Node slug
-
-        Returns:
-            List of connection dictionaries
-        """
-        graph = self.generator.generate()
+        """Get all connections for a node."""
+        graph = self._get_graph_dict()
+        edges = graph.get("edges", [])
 
         connections = []
-        for edge in graph.edges:
+        for edge in edges:
             if edge["source"] == slug:
                 connections.append({
                     "target": edge["target"],

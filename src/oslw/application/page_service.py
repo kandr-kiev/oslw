@@ -119,7 +119,7 @@ class PageService:
         """List wiki pages with filtering and pagination.
 
         Args:
-            category: Optional category filter (concepts, comparisons, etc.)
+            category: Optional category filter (concept, comparisons, etc.)
             type_filter: Optional page type filter
             tag: Optional tag filter
             limit: Maximum results
@@ -190,7 +190,7 @@ class PageService:
             raise ValidationError(f"Page with slug '{slug}' already exists")
 
         # Create page meta
-        from oslw.domain.wiki.page import PageMeta
+        from oslw.infrastructure.database import PageMeta
         page_meta = PageMeta(
             slug=slug,
             title=title,

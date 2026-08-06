@@ -56,7 +56,7 @@ class WikiIndex:
     Usage:
         index = WikiIndex(wiki_root=Path("./wiki"))
         index.load()  # Load from index.md
-        index.add_entry("transformers-architecture", "wiki/concepts/transformers-architecture.md")
+        index.add_entry("transformers-architecture", "wiki/concept/transformers-architecture.md")
         index.save()  # Save changes
     """
 

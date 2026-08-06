@@ -1,13 +1,81 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSLW Wiki</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">OSLW Wiki</h1>
+                <div class="search-bar">
+                    <input type="text" id="search-input" placeholder="Пошук сторінок..." />
+                    <button id="search-btn" class="btn btn-primary">Пошук</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <button class="nav-btn active" data-view="pages">📚 Сторінки</button>
+            <button class="nav-btn" data-view="stats">📊 Статистика</button>
+            <button class="nav-btn" data-view="search">🔍 Пошук</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Pages View -->
+            <div id="pages-view" class="view active">
+                <div class="view-header">
+                    <h2>Всі сторінки</h2>
+                    <div class="filters">
+                        <select id="category-filter">
+                            <option value="">Всі категорії</option>
+                        </select>
+                        <input type="number" id="limit-input" value="50" min="1" max="1000" placeholder="Ліміт" />
+                    </div>
+                </div>
+                <div id="pages-list" class="pages-list"></div>
+                <div class="pagination" id="pagination"></div>
+            </div>
+
+            <!-- Stats View -->
+            <div id="stats-view" class="view">
+                <div class="view-header">
+                    <h2>Статистика Wiki</h2>
+                </div>
+                <div id="stats-content" class="stats-content"></div>
+            </div>
+
+            <!-- Search View -->
+            <div id="search-view" class="view">
+                <div class="view-header">
+                    <h2>Пошук</h2>
+                </div>
+                <div class="search-results" id="search-results"></div>
+            </div>
+
+            <!-- Page Detail View -->
+            <div id="page-view" class="view">
+                <div class="view-header">
+                    <button id="back-btn" class="btn">← Назад</button>
+                    <h2 id="page-title"></h2>
+                </div>
+                <div class="page-meta" id="page-meta"></div>
+                <div class="page-content" id="page-content"></div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>OSLW Wiki Viewer v0.1.0</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
 </html>

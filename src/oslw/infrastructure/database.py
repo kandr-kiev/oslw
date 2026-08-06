@@ -77,14 +77,14 @@ class FileManager:
     """
 
     # Frontmatter field patterns
-    SLUG_PATTERN = re.compile(r'^slug:\s*(\S+)')
-    TITLE_PATTERN = re.compile(r'^title:\s*(.+)')
-    TYPE_PATTERN = re.compile(r'^type:\s*(\S+)')
-    TAGS_PATTERN = re.compile(r'^tags:\s*\[(.+)\]')
-    SOURCES_PATTERN = re.compile(r'^sources:\s*\[(.+)\]')
-    SHA256_PATTERN = re.compile(r'^sha256:\s*(\S+)')
-    CREATED_PATTERN = re.compile(r'^created:\s*(.+)')
-    UPDATED_PATTERN = re.compile(r'^updated:\s*(.+)')
+    SLUG_PATTERN = re.compile(r'^slug:\s*(\S+)', re.MULTILINE)
+    TITLE_PATTERN = re.compile(r'^title:\s*(.+)', re.MULTILINE)
+    TYPE_PATTERN = re.compile(r'^type:\s*(\S+)', re.MULTILINE)
+    TAGS_PATTERN = re.compile(r'^tags:\s*\[(.+)\]', re.MULTILINE)
+    SOURCES_PATTERN = re.compile(r'^sources:\s*\[(.+)\]', re.MULTILINE)
+    SHA256_PATTERN = re.compile(r'^sha256:\s*(\S+)', re.MULTILINE)
+    CREATED_PATTERN = re.compile(r'^created:\s*(.+)', re.MULTILINE)
+    UPDATED_PATTERN = re.compile(r'^updated:\s*(.+)', re.MULTILINE)
 
     # Index entry pattern
     INDEX_ENTRY_PATTERN = re.compile(r'^###\s+(\S+)\s+\[([^\]]+)\](?:\s+(.*))?$')
@@ -236,7 +236,7 @@ class FileManager:
         """List all wiki pages.
 
         Args:
-            category: Optional category filter (concepts, comparisons, etc.)
+            category: Optional category filter (concept, comparisons, etc.)
 
         Returns:
             List of PageMeta for all pages
@@ -414,12 +414,16 @@ class FileManager:
         """Get the total number of wiki pages.
 
         Returns:
-            Number of wiki pages
+            Number of wiki pages (excluding index.md and SCHEMA.md)
         """
         if not self.wiki_dir.exists():
             return 0
 
         count = sum(1 for _ in self.wiki_dir.rglob("*.md"))
-        # Subtract index.md and SCHEMA.md
-        count -= 2
+        # Subtract index.md and SCHEMA.md if they exist
+        if self.index_path.exists():
+            count -= 1
+        schema_path = self.wiki_dir / "schema" / "SCHEMA.md"
+        if schema_path.exists():
+            count -= 1
         return max(0, count)

@@ -11,7 +11,7 @@ from oslw.api.v1.schemas import (
     WikiPageUpdate,
     WikiPageResponse,
 )
-from oslw.api.deps import get_settings
+from oslw.api.deps import get_settings, get_api_key
 from oslw.config.settings import Settings
 from oslw.application import PageService
 from oslw.core.exceptions import PageNotFoundError, ValidationError
@@ -32,7 +32,7 @@ def get_page_service(settings: Settings = Depends(get_settings)) -> PageService:
     summary="List wiki pages",
     description="Get all wiki pages with optional filters",
 )
-async def list_pages(
+def list_pages(
     category: Optional[str] = Query(None, description="Filter by page type"),
     type_filter: Optional[str] = Query(None, description="Filter by page type"),
     tag: Optional[str] = Query(None, description="Filter by tag"),
@@ -42,7 +42,7 @@ async def list_pages(
 ) -> list[WikiPageResponse]:
     """List wiki pages with pagination and filters."""
     try:
-        result = await page_service.list_pages(
+        result = page_service.list_pages(
             category=category,
             type_filter=type_filter,
             tag=tag,
@@ -77,13 +77,13 @@ async def list_pages(
     summary="Get wiki page",
     description="Get a single wiki page by slug",
 )
-async def get_page(
+def get_page(
     slug: str,
     page_service: PageService = Depends(get_page_service),
 ) -> WikiPageResponse:
     """Get a wiki page by its slug."""
     try:
-        page = await page_service.get_page(slug)
+        page = page_service.get_page(slug)
         return WikiPageResponse(
             slug=page.slug,
             title=page.title,
@@ -114,13 +114,14 @@ async def get_page(
     summary="Create wiki page",
     description="Create a new wiki page",
 )
-async def create_page(
+def create_page(
     page_data: WikiPageCreate,
     page_service: PageService = Depends(get_page_service),
+    api_key: str = Depends(get_api_key),
 ) -> WikiPageResponse:
     """Create a new wiki page."""
     try:
-        created = await page_service.create_page(
+        created = page_service.create_page(
             title=page_data.title,
             content=page_data.content,
             slug=page_data.slug,
@@ -157,14 +158,15 @@ async def create_page(
     summary="Update wiki page",
     description="Update an existing wiki page",
 )
-async def update_page(
+def update_page(
     slug: str,
     page_data: WikiPageUpdate,
     page_service: PageService = Depends(get_page_service),
+    api_key: str = Depends(get_api_key),
 ) -> WikiPageResponse:
     """Update an existing wiki page."""
     try:
-        updated = await page_service.update_page(
+        updated = page_service.update_page(
             slug=slug,
             title=page_data.title,
             content=page_data.content,
@@ -200,13 +202,14 @@ async def update_page(
     summary="Delete wiki page",
     description="Delete a wiki page by slug",
 )
-async def delete_page(
+def delete_page(
     slug: str,
     page_service: PageService = Depends(get_page_service),
+    api_key: str = Depends(get_api_key),
 ) -> None:
     """Delete a wiki page."""
     try:
-        await page_service.delete_page(slug)
+        page_service.delete_page(slug)
     except PageNotFoundError:
         raise HTTPException(
             status_code=404,

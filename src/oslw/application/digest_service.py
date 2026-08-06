@@ -183,6 +183,38 @@ class DigestService:
 
         return "\n".join(lines)
 
+    def save_digest(self, hours: int = 24, format: str = "markdown",
+                    output_dir: Optional[str | Path] = None) -> Path:
+        """Generate, export, and save digest to disk.
+
+        Creates a timestamped digest file in digests/ directory.
+
+        Args:
+            hours: Number of hours to look back
+            format: Output format (markdown, json, text)
+            output_dir: Custom output directory (default: wiki_root/digests/)
+
+        Returns:
+            Path to saved digest file
+        """
+        content = self.export_digest(hours=hours, format=format)
+
+        if output_dir is None:
+            output_dir = self.file_manager.wiki_root / "digests"
+
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ext = {"markdown": ".md", "json": ".json", "text": ".txt"}[format]
+        filename = f"digest_{timestamp}{ext}"
+        full_path = output_path / filename
+
+        full_path.write_text(content, encoding="utf-8")
+
+        logger.info("Saved digest to %s (%d bytes)", full_path, len(content))
+        return full_path
+
     def get_recent_entries(self, limit: int = 10,
                                hours: int = 24) -> list[DigestEntry]:
         """Get most recent digest entries.
@@ -196,3 +228,29 @@ class DigestService:
         """
         entries = self.generate_digest(hours=hours)
         return entries[:limit]
+
+    def list_saved_digests(self, output_dir: Optional[str | Path] = None) -> list[dict]:
+        """List all saved digest files.
+
+        Args:
+            output_dir: Custom output directory (default: wiki_root/digests/)
+
+        Returns:
+            List of dicts with filename, size, and modification time
+        """
+        if output_dir is None:
+            output_dir = self.file_manager.wiki_root / "digests"
+
+        path = Path(output_dir)
+        if not path.exists():
+            return []
+
+        digests = []
+        for f in sorted(path.glob("digest_*"), reverse=True):
+            digests.append({
+                "filename": f.name,
+                "size": f.stat().st_size,
+                "modified": f.stat().st_mtime,
+            })
+
+        return digests

@@ -15,7 +15,7 @@ router = APIRouter(tags=["health"])
     summary="Health check",
     description="Check if the OSLW service is running",
 )
-async def health_check() -> HealthResponse:
+def health_check() -> HealthResponse:
     """Return service health status."""
     return HealthResponse(
         status="ok",

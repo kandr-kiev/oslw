@@ -58,8 +58,8 @@ class PageLint:
     - Heading hierarchy
 
     Usage:
-        lint = PageLint()
-        result = lint.check_file("wiki/concepts/transformers.md")
+        lint = PageLint(wiki_root=Path("./wiki"))
+        result = lint.check_file("wiki/concept/transformers.md")
         print(f"Score: {result.score}")
         for issue in result.issues:
             print(f"[{issue.severity}] {issue.code}: {issue.message}")
@@ -72,6 +72,14 @@ class PageLint:
 
     # Required section patterns
     REQUIRED_SECTIONS = ["description", "overview"]
+
+    def __init__(self, wiki_root: str | Path = ""):
+        """Initialize PageLint.
+
+        Args:
+            wiki_root: Path to wiki root directory (optional, not used directly)
+        """
+        self.wiki_root = Path(wiki_root) if wiki_root else Path()
 
     def check_file(self, file_path: str | Path) -> LintResult:
         """Lint a single wiki page.
@@ -108,6 +116,32 @@ class PageLint:
         result.score = self._calculate_score(result)
 
         return result
+
+    def validate_page(self, page) -> list[str]:
+        """Validate a page and return list of error messages.
+
+        Args:
+            page: PageMeta or file path to validate
+
+        Returns:
+            List of error/warning messages (empty if valid)
+        """
+        if hasattr(page, "path") and hasattr(page, "content"):
+            # It's a PageMeta
+            path = page.path
+            text = page.content if page.content else page.raw_content
+        else:
+            # It's a file path
+            path = Path(page)
+            text = path.read_text(encoding="utf-8")
+
+        result = self.check_file(path)
+
+        # Convert to list of strings
+        return [
+            f"[{issue.severity.upper()}] {issue.code}: {issue.message}"
+            for issue in result.issues
+        ]
 
     def check_directory(self, dir_path: str | Path) -> list[LintResult]:
         """Lint all markdown files in a directory.

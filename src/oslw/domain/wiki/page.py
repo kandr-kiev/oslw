@@ -195,5 +195,81 @@ class WikiPage:
             word_count=data.get("word_count", 0),
         )
 
+    @staticmethod
+    def generate_slug(title: str) -> str:
+        """Generate URL-friendly slug from title."""
+        slug = title.lower().strip()
+        slug = re.sub(r'[^\w\s-]', '', slug)
+        slug = re.sub(r'[\s_]+', '-', slug)
+        slug = re.sub(r'-+', '-', slug)
+        slug = slug.strip('-')
+        return slug or "untitled"
+
+    @classmethod
+    def from_meta(cls, meta) -> "WikiPage":
+        """Create WikiPage from PageMeta.
+
+        Args:
+            meta: PageMeta instance from FileManager
+
+        Returns:
+            WikiPage instance
+        """
+        type_val = PageType(meta.type) if meta.type in PageType.valid_types() else PageType.CONCEPT
+
+        created = None
+        if meta.created:
+            try:
+                created = datetime.fromisoformat(meta.created)
+            except (ValueError, TypeError):
+                created = datetime.now()
+
+        updated = None
+        if meta.updated:
+            try:
+                updated = datetime.fromisoformat(meta.updated)
+            except (ValueError, TypeError):
+                updated = datetime.now()
+
+        return cls(
+            slug=meta.slug,
+            title=meta.title,
+            description=meta.description,
+            type=type_val,
+            tags=meta.tags,
+            sources=meta.sources,
+            confidence=0.5,
+            links=[],
+            created=created or datetime.now(),
+            updated=updated or datetime.now(),
+            content=meta.content,
+            raw_path=meta.path if hasattr(meta, "path") else None,
+            line_count=len(meta.content.splitlines()) if meta.content else 0,
+            word_count=len(meta.content.split()) if meta.content else 0,
+        )
+
+    def to_meta(self):
+        """Convert WikiPage to PageMeta.
+
+        Returns:
+            PageMeta instance
+        """
+        from oslw.infrastructure.database import PageMeta
+
+        return PageMeta(
+            slug=self.slug,
+            title=self.title,
+            description=self.description,
+            type=self.type.value if hasattr(self.type, "value") else str(self.type),
+            tags=self.tags,
+            sources=self.sources,
+            sha256="",
+            created=self.created.isoformat() if self.created else "",
+            updated=self.updated.isoformat() if self.updated else "",
+            path=self.raw_path if self.raw_path else Path(),
+            content=self.content,
+            raw_content="",
+        )
+
     def __repr__(self) -> str:
         return f"WikiPage(slug='{self.slug}', title='{self.title}', type={self.type.value})"

@@ -30,6 +30,7 @@ class DigestEntry:
         page: Page slug
         title: Page title
         description: Brief description of change
+        source: Source of the entry (if applicable)
     """
 
     timestamp: datetime
@@ -37,6 +38,7 @@ class DigestEntry:
     page: str
     title: str
     description: str = ""
+    source: str = ""
 
 
 class NewspaperDigest:

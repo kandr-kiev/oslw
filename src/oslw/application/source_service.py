@@ -162,6 +162,14 @@ class SourceService:
 
         return report
 
+    def monitor_all(self) -> dict:
+        """Monitor all configured sources for updates.
+
+        Returns:
+            Dictionary with monitoring results
+        """
+        return self.monitor_sources()
+
     def monitor_sources(self) -> dict:
         """Monitor all configured sources for updates.
 

@@ -50,7 +50,7 @@ class PageIntegrity:
 
     Usage:
         integrity = PageIntegrity(wiki_root=Path("./wiki"))
-        result = integrity.check_page("wiki/concepts/transformers.md")
+        result = integrity.check_page("wiki/concept/transformers.md")
         if not result.sha256_match:
             print(f"SHA256 drift: {result.sha256_expected} != {result.sha256_actual}")
     """
@@ -139,7 +139,7 @@ class PageIntegrity:
         """
         # Try common patterns
         patterns = [
-            self.wiki_root / "wiki" / "concepts" / f"{link}.md",
+            self.wiki_root / "wiki" / "concept" / f"{link}.md",
             self.wiki_root / "wiki" / "comparisons" / f"{link}.md",
             self.wiki_root / "wiki" / "playbooks" / f"{link}.md",
             self.wiki_root / "wiki" / "synthesis" / f"{link}.md",

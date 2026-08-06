@@ -129,13 +129,24 @@ class QualityService:
                    len(removed), "would be removed" if dry_run else "removed")
         return removed
 
-    def get_quality_stats(self) -> QualityStats:
+    def get_quality_stats(self, sample_size: int | None = None) -> QualityStats:
         """Get comprehensive quality statistics.
+
+        Args:
+            sample_size: Limit pages to scan.
+                - None (default): scan ALL pages, include duplicates (full accuracy)
+                - 0: scan ALL pages, skip duplicates (fast full scan)
+                - int > 0: scan only first N pages, skip duplicates (sampling)
 
         Returns:
             QualityStats with current statistics
         """
         pages = self.file_manager.list_wiki_pages()
+
+        # Apply sample size limit
+        if sample_size is not None and sample_size > 0:
+            pages = pages[:sample_size]
+
         stats = QualityStats(total_pages=len(pages))
 
         # Count pages with frontmatter and SHA256
@@ -158,38 +169,60 @@ class QualityService:
                 if page_meta.slug not in linked_slugs:
                     stats.orphan_pages += 1
 
-        # Find duplicate groups
-        dup_groups = self.dedup.find_duplicates()
-        stats.duplicate_groups = len(dup_groups)
-
-        # Calculate average confidence (simplified)
-        if pages:
-            # Assume all pages have equal confidence for now
-            stats.average_confidence = 0.8
-        else:
+        # Skip expensive duplicate detection when sampling (sample_size != None)
+        # sample_size=0 → full scan but skip duplicates (fast full)
+        # sample_size=None → full scan with duplicates (accurate full)
+        if sample_size is not None:
+            stats.duplicate_groups = 0
             stats.average_confidence = 0.0
+        else:
+            # Find duplicate groups (full scan)
+            dup_groups = self.dedup.find_duplicates()
+            stats.duplicate_groups = len(dup_groups)
+
+            # Calculate average confidence (simplified)
+            if pages:
+                stats.average_confidence = 0.8
+            else:
+                stats.average_confidence = 0.0
 
         return stats
 
-    def run_full_audit(self) -> dict:
+    def run_full_audit(self, sample_size: int | None = None) -> dict:
         """Run a full quality audit.
+
+        Args:
+            sample_size: Limit pages to scan.
+                - None (default): audit ALL pages, include duplicates
+                - int > 0: audit first N pages only, skip duplicates
+                - 0: audit ALL pages, skip duplicates (fast mode)
 
         Returns:
             Dictionary with all audit results
         """
-        # Run diagnosis
-        report = self.diagnose(layer="all")
+        # Run diagnosis (limited if sample_size specified)
+        if sample_size is not None and sample_size > 0:
+            report = self.diagnose(layer="metadata")
+        else:
+            report = self.diagnose(layer="all")
 
-        # Get quality stats
-        stats = self.get_quality_stats()
+        # Get quality stats (limited if sample_size specified)
+        stats = self.get_quality_stats(sample_size=sample_size)
 
-        # Find duplicates
-        duplicates = self.find_duplicates()
+        # Find duplicates (limited if sample_size specified)
+        if sample_size is not None and sample_size > 0:
+            duplicates = []
+        else:
+            duplicates = self.find_duplicates()
 
-        # Validate all pages (sample - first 10)
+        # Validate pages (sample or all)
         pages = self.file_manager.list_wiki_pages()
+        if sample_size is not None and sample_size > 0:
+            pages = pages[:sample_size]
+        # sample_size == 0 or None: validate all pages (up to 100 for performance)
+
         validation_errors = {}
-        for page_meta in pages[:10]:
+        for page_meta in pages[:100]:
             errors = self.validate_page(page_meta.slug)
             if errors:
                 validation_errors[page_meta.slug] = errors
@@ -198,9 +231,9 @@ class QualityService:
             "diagnosis": {
                 "issues": [str(issue) for issue in report.issues],
                 "severity_counts": {
-                    "critical": sum(1 for i in report.issues if str(i).startswith("CRITICAL")),
-                    "warning": sum(1 for i in report.issues if str(i).startswith("WARNING")),
-                    "info": sum(1 for i in report.issues if str(i).startswith("INFO")),
+                    "critical": sum(1 for i in report.issues if i.severity == "critical"),
+                    "warning": sum(1 for i in report.issues if i.severity == "warning"),
+                    "info": sum(1 for i in report.issues if i.severity == "info"),
                 },
             },
             "quality_stats": {

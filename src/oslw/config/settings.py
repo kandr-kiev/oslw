@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     )
 
     # ========================================================================
+    # Authentication
+    # ========================================================================
+    api_key: str = Field(
+        default="",
+        description="API key for authentication. MUST be set via OSLW_API_KEY env.",
+    )
+
+    # ========================================================================
     # Frontend
     # ========================================================================
     frontend_url: str = "http://localhost:3000"
@@ -89,16 +97,6 @@ class Settings(BaseSettings):
     def index_path(self) -> Path:
         """Path to wiki index.md."""
         return self.wiki_root / "wiki" / "index.md"
-
-    @property
-    def schema_path(self) -> Path:
-        """Path to SCHEMA.md (approved tags)."""
-        return self.wiki_root / "wiki" / "schema" / "SCHEMA.md"
-
-    @property
-    def inbox_path(self) -> Path:
-        """Path to inbox directory."""
-        return self.wiki_root / "inbox"
 
     @property
     def graph_file(self) -> Path:

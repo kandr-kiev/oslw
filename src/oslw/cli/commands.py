@@ -143,6 +143,10 @@ def doctor(
         False, "--apply",
         help="Apply fixes (only with --apply)",
     ),
+    limit: int = typer.Option(
+        100, "--limit", "-n",
+        help="Limit number of pages to scan (0 = all, default: 100)",
+    ),
 ):
     """Run WikiDoctor diagnosis and optionally fix issues."""
     s = _get_settings(wiki_root)
@@ -152,6 +156,7 @@ def doctor(
     typer.echo(f"🔍 Running WikiDoctor diagnosis...")
     typer.echo(f"   Wiki root: {s.wiki_root}")
     typer.echo(f"   Dry run: {dry_run}")
+    typer.echo(f"   Limit: {limit} pages")
 
     if layer:
         typer.echo(f"   Layer: {layer}")
@@ -159,7 +164,7 @@ def doctor(
     try:
         quality = _get_quality_service(wiki_root)
 
-        audit = quality.run_full_audit()
+        audit = quality.run_full_audit(sample_size=limit if limit > 0 else None)
 
         diagnosis = audit["diagnosis"]
         typer.echo(f"\n📊 Diagnosis Results:")
@@ -202,6 +207,8 @@ def doctor(
         typer.echo(f"\n✅ Diagnosis complete!")
         raise typer.Exit(0)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         logger.error("Error running doctor: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
@@ -222,6 +229,10 @@ def sync(
         False, "--force",
         help="Force sync even if files exist",
     ),
+    limit: int = typer.Option(
+        0, "--limit", "-l",
+        help="Limit number of articles to process (0 = all)",
+    ),
 ):
     """Synchronize raw articles to wiki pages."""
     s = _get_settings(wiki_root)
@@ -234,6 +245,7 @@ def sync(
 
     try:
         source_service = _get_source_service(wiki_root)
+        page_service = _get_page_service(wiki_root)
 
         raw_articles = source_service.get_raw_articles()
         typer.echo(f"   Raw articles found: {len(raw_articles)}")
@@ -241,6 +253,18 @@ def sync(
         if not raw_articles:
             typer.echo(f"   No raw articles to sync")
             raise typer.Exit(0)
+
+        # Build set of existing slugs ONCE (O(1) lookup per article)
+        existing_slugs = set()
+        all_pages = page_service.file_manager.list_wiki_pages()
+        for p in all_pages:
+            existing_slugs.add(p.slug)
+        typer.echo(f"   Existing wiki pages: {len(existing_slugs)}")
+
+        # Apply limit if specified
+        if limit > 0:
+            raw_articles = raw_articles[:limit]
+            typer.echo(f"   Processing limit: {limit}")
 
         synced = 0
         skipped = 0
@@ -258,22 +282,26 @@ def sync(
                         break
 
                 slug = title.lower().replace(" ", "-").replace("—", "-")[:100]
-                page_service = _get_page_service(wiki_root)
 
-                if page_service.page_exists(slug) and not force:
+                if slug in existing_slugs and not force:
                     typer.echo(f"   ⏭️  Skip: {title}")
                     skipped += 1
                     continue
 
-                page_service.create_page(
-                    title=title,
-                    content=content,
-                    slug=slug,
-                    page_type="concept",
-                    tags=["synced"],
-                )
-                typer.echo(f"   ✅ Synced: {title}")
-                synced += 1
+                if dry_run:
+                    typer.echo(f"   ✅ Would sync: {title}")
+                    synced += 1
+                else:
+                    page_service.create_page(
+                        title=title,
+                        content=content,
+                        slug=slug,
+                        page_type="concept",
+                        tags=["synced"],
+                    )
+                    existing_slugs.add(slug)  # Update set after creation
+                    typer.echo(f"   ✅ Synced: {title}")
+                    synced += 1
 
             except Exception as e:
                 logger.error("Error syncing %s: %s", article_path, str(e))
@@ -287,6 +315,8 @@ def sync(
 
         raise typer.Exit(0)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         logger.error("Error running sync: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
@@ -342,6 +372,8 @@ def graph(
 
         raise typer.Exit(0)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         logger.error("Error managing graph: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
@@ -397,6 +429,8 @@ def digest(
 
         raise typer.Exit(0)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         logger.error("Error generating digest: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
@@ -450,6 +484,8 @@ def monitor(
 
         raise typer.Exit(0)
 
+    except typer.Exit:
+        raise
     except Exception as e:
         logger.error("Error monitoring sources: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
@@ -518,6 +554,42 @@ def page(
         logger.error("Error managing page: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
         raise typer.Exit(1)
+
+
+@cli.command()
+def server(
+    host: str = typer.Option(
+        "0.0.0.0", "--host", "-h",
+        help="Host to bind to",
+    ),
+    port: int = typer.Option(
+        8000, "--port", "-p",
+        help="Port to bind to",
+    ),
+    reload: bool = typer.Option(
+        False, "--reload", "-r",
+        help="Enable auto-reload (development)",
+    ),
+):
+    """Start the OSLW web server (API + Frontend)."""
+    import uvicorn
+    
+    typer.echo(f"🚀 Starting OSLW server...")
+    typer.echo(f"   Host: {host}")
+    typer.echo(f"   Port: {port}")
+    typer.echo(f"   Reload: {reload}")
+    typer.echo(f"   Wiki root: {settings.wiki_root}")
+    typer.echo(f"   API docs: http://{host}:{port}/docs")
+    typer.echo(f"   Frontend: http://{host}:{port}/")
+    typer.echo(f"   Press Ctrl+C to stop")
+    
+    uvicorn.run(
+        "oslw.api.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_level="info",
+    )
 
 
 if __name__ == "__main__":

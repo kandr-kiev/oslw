@@ -11,7 +11,7 @@ from oslw.api.v1.schemas import (
     DoctorDiagnostic,
     DoctorCureRequest,
 )
-from oslw.api.deps import get_settings
+from oslw.api.deps import get_settings, get_api_key
 from oslw.config.settings import Settings
 from oslw.application import QualityService
 from oslw.config.logging import get_logger
@@ -31,7 +31,7 @@ def get_quality_service(settings: Settings = Depends(get_settings)) -> QualitySe
     summary="Diagnose wiki",
     description="Run WikiDoctor diagnosis on the wiki",
 )
-async def diagnose_wiki(
+def diagnose_wiki(
     layers: Optional[str] = Query(
         None,
         description="Specific layers to check (comma-separated: index,wiki_pages,metadata)",
@@ -44,7 +44,7 @@ async def diagnose_wiki(
         if layers:
             layer = layers
 
-        audit = await quality_service.run_full_audit()
+        audit = quality_service.run_full_audit()
         diagnosis = audit["diagnosis"]
         quality = audit["quality_stats"]
 
@@ -114,23 +114,24 @@ async def diagnose_wiki(
     summary="Cure wiki",
     description="Run WikiDoctor cure operations",
 )
-async def cure_wiki(
+def cure_wiki(
     request: DoctorCureRequest,
     quality_service: QualityService = Depends(get_quality_service),
+    api_key: str = Depends(get_api_key),
 ) -> dict:
     """Run WikiDoctor cure operations."""
     try:
         results = {}
 
         # Fix broken wikilinks
-        duplicates_removed = await quality_service.cleanup_duplicates(dry_run=not request.apply_fixes)
+        duplicates_removed = quality_service.cleanup_duplicates(dry_run=not request.apply_fixes)
         results["duplicates"] = {
             "removed": duplicates_removed,
             "dry_run": request.dry_run,
         }
 
         # Run diagnosis after cure
-        report = await diagnose_wiki(layers=None, quality_service=quality_service)
+        report = diagnose_wiki(layers=None, quality_service=quality_service)
 
         results["diagnosis_after"] = {
             "total_errors": report.total_errors,

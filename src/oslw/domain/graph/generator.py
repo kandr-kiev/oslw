@@ -10,6 +10,7 @@ Converts wiki/ with [[wikilinks]] into graph.json format:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -73,9 +74,14 @@ class GraphGenerator:
         self.wiki_dir = self.wiki_root / "wiki"
         self.nodes: dict[str, GraphNode] = {}
         self.edges: list[GraphEdge] = []
+        self._cache_mtime: float = 0
+        self._cache_valid: bool = False
 
-    def generate(self) -> dict:
+    def generate(self, force: bool = False) -> dict:
         """Generate the knowledge graph.
+
+        Args:
+            force: If True, regenerate from scratch. If False, load cached graph if available and valid.
 
         Returns:
             Dictionary with nodes and edges
@@ -86,8 +92,48 @@ class GraphGenerator:
         if not self.wiki_dir.exists():
             raise GraphGenerationError(f"Wiki directory not found: {self.wiki_dir}")
 
+        # Check if cache is valid (not forced + cache exists + wiki files unchanged)
+        if not force and self._cache_valid:
+            cache_path = self.wiki_root / "graph-from-wiki.json"
+            if cache_path.exists():
+                logger.info("Using valid cached graph: %d nodes, %d edges",
+                           len(self.nodes), len(self.edges))
+                return {
+                    "nodes": [n.__dict__ for n in self.nodes.values()],
+                    "edges": [e.__dict__ for e in self.edges],
+                }
+
+        # Load cached graph if available and not forcing regeneration
+        cache_path = self.wiki_root / "graph-from-wiki.json"
+        if not force and cache_path.exists():
+            try:
+                graph_data = json.loads(cache_path.read_text(encoding="utf-8"))
+                nodes_data = graph_data.get("nodes", [])
+                if nodes_data:
+                    logger.info("Loaded cached graph: %d nodes, %d edges",
+                               len(nodes_data), len(graph_data.get("edges", [])))
+                    # Rebuild internal state from cache
+                    self.nodes = {
+                        n["id"]: GraphNode(id=n["id"], label=n["label"], type=n.get("type", "wiki"))
+                        for n in nodes_data
+                    }
+                    self.edges = [
+                        GraphEdge(source=e["source"], target=e["target"], label=e.get("label", ""))
+                        for e in graph_data.get("edges", [])
+                    ]
+                    self._cache_valid = True
+                    self._cache_mtime = cache_path.stat().st_mtime
+                    return {
+                        "nodes": [n.__dict__ for n in self.nodes.values()],
+                        "edges": [e.__dict__ for e in self.edges],
+                    }
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning("Failed to load cached graph: %s, regenerating", e)
+
+        # Full regeneration
         self.nodes = {}
         self.edges = []
+        self._cache_valid = False
 
         # Process all wiki pages
         for md_file in self.wiki_dir.rglob("*.md"):
@@ -114,7 +160,6 @@ class GraphGenerator:
                 )
 
             # Extract wikilinks (edges)
-            import re
             links = re.findall(r'\[\[([^\]]+)\]\]', text)
             for link in links:
                 # Skip internal links and non-slugs
@@ -161,7 +206,6 @@ class GraphGenerator:
             Slug or None
         """
         # Try frontmatter
-        import re
         slug_match = re.search(r'^slug:\s*(\S+)', text, re.MULTILINE)
         if slug_match:
             return slug_match.group(1)
@@ -182,7 +226,6 @@ class GraphGenerator:
         Returns:
             Title or None
         """
-        import re
         title_match = re.search(r'^title:\s*(.+)', text, re.MULTILINE)
         if title_match:
             return title_match.group(1).strip()
@@ -197,7 +240,6 @@ class GraphGenerator:
         Returns:
             Page type (default: "concept")
         """
-        import re
         type_match = re.search(r'^type:\s*(\S+)', text, re.MULTILINE)
         if type_match:
             return type_match.group(1)
