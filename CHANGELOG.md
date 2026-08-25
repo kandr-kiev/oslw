@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+#### oslw-cli slug normalization & deduplication (task t_13b3807a)
+- **Canonical slug normalization** (`src/oslw/utils/slug.py`): new single
+  `norm_name()` is now the one source of truth for every slug producer —
+  `RSSScanner`, `GitHubScanner`, `HuggingFaceScanner`, `YouTubeScanner`,
+  `ContentIngestor`, `WikiPage.generate_slug`, `PageService.create_page`, and
+  the CLI `sync` command. Normalization is the audit etalon
+  (`re.sub(r'[^\\w\\u0400-\\u04ff]+', '-', s)`): lowercase, all non-word /
+  non-Cyrillic runs (including `# : @ ? [ ] ( ) ,`) collapse to a single
+  hyphen, hyphens collapse and trim. Cyrillic is preserved to match the
+  existing wiki. This fixes `role:`, `role--`, `issue-#123:`, etc. producing
+  divergent file names.
+- **Cross-category deduplication** (`FileManager.write_page`): a normalized
+  slug is now unique across ALL Layer-2 categories (`entities`, `concepts`,
+  `comparisons`, `queries`, `references`, `playbooks`, `synthesis`,
+  `transcripts`). A re-sync of the same concept into a different category
+  updates the existing page in place instead of creating a twin; identical
+  content is a no-op. A `sha256` field is now written into page frontmatter
+  and used for change detection.
+- **SHA256-only dedup** (`ContentIngestor.ingest`): identical raw content is
+  skipped (not rewritten), keyed on the content body hash rather than slug.
+  Also fixed a malformed double `---` separator in the written raw file.
+- **CLI `sync`**: slug is now derived with `norm_name` and the existing-page
+  set is built from normalized slugs, so a raw article whose title normalizes
+  to an existing page's slug is correctly skipped regardless of punctuation.
+
+### Tests
+- Added `tests/test_dedup.py` (13 cases): slug normalization, cross-category
+  collision, identical-content skip, and sync slug edge cases.
+- Updated `tests/test_scanners.py` GitHub slug assertion to the corrected
+  `release-v1-0-0` output.
+
 ## [0.1.0] - 2026-08-05
 
 ### Added
