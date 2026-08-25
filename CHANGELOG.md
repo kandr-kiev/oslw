@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   collision, identical-content skip, and sync slug edge cases.
 - Updated `tests/test_scanners.py` GitHub slug assertion to the corrected
   `release-v1-0-0` output.
+- Aligned `tests/domain/test_index.py` with the root-level `index.md` layout
+  (Layer-2 categories live directly under `wiki_root`, not `wiki_root/wiki`)
+  and made the `SourceMonitor` integration test self-contained: it writes its
+  own `config/sources.json` instead of asserting the live wiki's source count
+  (which grows over time and broke the test in CI).
 
 ## [0.1.0] - 2026-08-05
 
