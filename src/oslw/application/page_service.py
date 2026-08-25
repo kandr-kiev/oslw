@@ -23,6 +23,7 @@ from oslw.config.logging import get_logger
 from oslw.domain.wiki.page import WikiPage
 from oslw.infrastructure.database import FileManager
 from oslw.core.exceptions import PageNotFoundError, ValidationError
+from oslw.utils.slug import norm_name
 
 logger = get_logger("application.page_service")
 
@@ -180,9 +181,11 @@ class PageService:
         if not title.strip():
             raise ValidationError("Title cannot be empty")
 
-        # Generate slug if not provided
+        # Generate slug if not provided, and normalize it so punctuation/whitespace
+        # variants collapse to a single canonical file (matches scanners/ingest).
         if not slug:
             slug = WikiPage.generate_slug(title)
+        slug = norm_name(slug) or slug
 
         # Check if slug already exists
         existing = self.file_manager.read_page(slug)
@@ -206,7 +209,7 @@ class PageService:
 
         # Reload to get full metadata
         created_page = self.get_page(slug)
-        logger.info("Created page: %s -> %s", slug, written_path)
+        logger.info("Створено сторінку: %s -> %s", slug, written_path)
 
         return created_page
 
@@ -247,7 +250,7 @@ class PageService:
 
         # Reload to get updated metadata
         updated_page = self.get_page(slug)
-        logger.info("Updated page: %s -> %s", slug, written_path)
+        logger.info("Оновлено сторінку: %s -> %s", slug, written_path)
 
         return updated_page
 
@@ -270,7 +273,7 @@ class PageService:
         deleted = self.file_manager.delete_page(slug)
 
         if deleted:
-            logger.info("Deleted page: %s", slug)
+            logger.info("Видалено сторінку: %s", slug)
         else:
             raise PageNotFoundError(slug=slug)
 

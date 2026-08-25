@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from oslw.config.logging import get_logger
+from oslw.utils.slug import norm_name
 
 logger = get_logger("domain.sources.scanners")
 
@@ -117,16 +118,16 @@ class RSSScanner:
                     articles.append(article)
 
             logger.info(
-                "RSSScanner: fetched %d articles from %s (%d in feed)",
+                "RSSScanner: отримано %d статей з %s (%d у стрічці)",
                 len(articles),
                 source_name or url,
                 len(feed.entries),
             )
 
         except ImportError:
-            logger.error("feedparser not installed. Install with: pip install feedparser")
+            logger.error("feedparser не встановлено. Встановіть: pip install feedparser")
         except Exception as e:
-            logger.error("RSSScanner failed for %s: %s", url, e)
+            logger.error("RSSScanner не вдалося для %s: %s", url, e)
 
         return articles
 
@@ -285,10 +286,7 @@ class RSSScanner:
         Returns:
             URL-friendly slug
         """
-        slug = title.lower().strip()
-        slug = slug.replace(" ", "-").replace("_", "-")
-        slug = re.sub(r"[^a-z0-9-]", "", slug)
-        slug = re.sub(r"-+", "-", slug).strip("-")
+        slug = norm_name(title)
         if len(slug) < 3:
             slug = f"rss-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
         return slug
@@ -346,13 +344,13 @@ class GitHubScanner:
                         articles.append(article)
 
             logger.info(
-                "GitHubScanner: fetched %d releases from %s",
+                "GitHubScanner: отримано %d релізів з %s",
                 len(articles),
                 repo,
             )
 
         except Exception as e:
-            logger.error("GitHubScanner failed for %s: %s", repo, e)
+            logger.error("GitHubScanner не вдалося для %s: %s", repo, e)
 
         return articles
 
@@ -433,10 +431,7 @@ class GitHubScanner:
 
     def _generate_slug(self, title: str) -> str:
         """Generate URL-friendly slug."""
-        slug = title.lower().strip()
-        slug = slug.replace(" ", "-").replace("_", "-")
-        slug = re.sub(r"[^a-z0-9-]", "", slug)
-        slug = re.sub(r"-+", "-", slug).strip("-")
+        slug = norm_name(title)
         if len(slug) < 3:
             slug = f"gh-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
         return slug
@@ -482,11 +477,11 @@ class HuggingFaceScanner:
             import requests
 
             endpoint = f"{self.API_BASE}/{model_type}"
-            params = {"sort": "trending", "limit": limit, "full": "true"}
+            params = {"sort": "downloads", "limit": limit}
 
             resp = requests.get(endpoint, params=params, timeout=30)
             if resp.status_code != 200:
-                logger.error("HF API error: %d", resp.status_code)
+                logger.error("HF API помилка: %d", resp.status_code)
                 return []
 
             items = resp.json()
@@ -497,13 +492,13 @@ class HuggingFaceScanner:
                     articles.append(article)
 
             logger.info(
-                "HuggingFaceScanner: fetched %d %s from HF",
+                "HuggingFaceScanner: отримано %d %s з HF",
                 len(articles),
                 model_type,
             )
 
         except Exception as e:
-            logger.error("HuggingFaceScanner failed: %s", e)
+            logger.error("HuggingFaceScanner не вдалося: %s", e)
 
         return articles
 
@@ -564,10 +559,13 @@ class HuggingFaceScanner:
         )
 
     def _generate_slug(self, title: str) -> str:
-        """Generate URL-friendly slug."""
+        """Generate URL-friendly slug.
+
+        Keeps the ``/`` separator so org/model ids (e.g. ``test-org/test-model``)
+        survive as ``test-org/test-model``.
+        """
         slug = title.lower().strip()
-        slug = slug.replace(" ", "-").replace("_", "-")
-        slug = re.sub(r"[^a-z0-9-./]", "", slug)
+        slug = re.sub(r"[^a-z0-9\-./\u0400-\u04ff]+", "-", slug)
         slug = re.sub(r"-+", "-", slug).strip("-")
         if len(slug) < 3:
             slug = f"hf-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
@@ -728,10 +726,7 @@ class YouTubeScanner:
 
     def _generate_slug(self, title: str, video_id: str = "") -> str:
         """Generate slug with video ID for uniqueness."""
-        slug = title.lower().strip()
-        slug = slug.replace(" ", "-").replace("_", "-")
-        slug = re.sub(r"[^a-z0-9-]", "", slug)
-        slug = re.sub(r"-+", "-", slug).strip("-")
+        slug = norm_name(title)
         if video_id and len(slug) < 10:
             slug = f"yt-{video_id}"
         elif len(slug) < 3:

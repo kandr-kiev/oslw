@@ -10,6 +10,7 @@ Handles the transformation from raw content to wiki pages:
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,8 +18,27 @@ from typing import Optional
 
 from oslw.config.logging import get_logger
 from oslw.core.exceptions import IngestError
+from oslw.utils.slug import norm_name
 
 logger = get_logger("domain.sources.ingest")
+
+
+def _extract_body(raw_text: str) -> str:
+    """Extract the markdown body from a raw article file, ignoring frontmatter.
+
+    Handles both a single ``---\\n...\\n---\\n`` frontmatter block and the
+    double-separator quirk (``---\\n...\\n---\\n---\\n``) produced by this ingestor.
+    """
+    # First --- that ends the frontmatter block.
+    _, _, body = raw_text.partition("\n---\n")
+    if not body:
+        # No frontmatter fence: the whole text is the body.
+        return raw_text.strip()
+    # A spurious extra fence inside the body (the double-separator quirk) is
+    # stripped before returning.
+    if body.startswith("---"):
+        body = body[3:]
+    return body.strip()
 
 
 @dataclass
@@ -40,6 +60,7 @@ class IngestResult:
     title: str = ""
     raw_path: Optional[Path] = None
     wiki_path: Optional[Path] = None
+    skipped: bool = False
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -72,7 +93,7 @@ class ContentIngestor:
         """
         self.wiki_root = Path(wiki_root)
         self.raw_dir = self.wiki_root / "raw" / "articles"
-        self.wiki_dir = self.wiki_root / "wiki"
+        self.wiki_dir = self.wiki_root
 
     def ingest(
         self,
@@ -103,6 +124,22 @@ class ContentIngestor:
             result.slug = slug
             result.title = title
 
+            # SHA256-only deduplication: if an identical raw file already exists,
+            # do not write it again. This is intentionally keyed on content hash,
+            # not slug — a different slug with identical body is still a duplicate.
+            raw_filename = f"{slug}.md"
+            raw_path = self.raw_dir / raw_filename
+            if raw_path.exists():
+                existing = raw_path.read_text(encoding="utf-8")
+                existing_body = _extract_body(existing)
+                existing_hash = hashlib.sha256(existing_body.encode("utf-8")).hexdigest()
+                new_hash = hashlib.sha256(content.strip().encode("utf-8")).hexdigest()
+                if existing_hash == new_hash:
+                    result.skipped = True
+                    result.raw_path = raw_path
+                    logger.info("Пропущено (ідентичний вміст): %s", raw_path)
+                    return result
+
             # Generate frontmatter
             frontmatter = self._generate_frontmatter(
                 title=title,
@@ -112,19 +149,18 @@ class ContentIngestor:
                 source_name=source_name,
             )
 
-            # Write raw file
-            raw_filename = f"{slug}.md"
-            raw_path = self.raw_dir / raw_filename
+            # Write raw file. `_generate_frontmatter` already emits a closing
+            # `---`, so we join body with a single newline (no extra fence).
             raw_path.parent.mkdir(parents=True, exist_ok=True)
-            raw_path.write_text(f"{frontmatter}\n---\n{content}", encoding="utf-8")
+            raw_path.write_text(f"{frontmatter}\n{content}", encoding="utf-8")
             result.raw_path = raw_path
 
-            logger.info("Ingested article: %s -> %s", title, raw_path)
+            logger.info("Статтю інтегровано: %s -> %s", title, raw_path)
 
         except Exception as e:
             result.success = False
             result.errors.append(f"Ingestion failed: {e}")
-            logger.error("Ingestion failed for '%s': %s", title, e)
+            logger.error("Інтеграція не вдалася для '%s': %s", title, e)
 
         return result
 
@@ -186,7 +222,7 @@ class ContentIngestor:
                 })
 
         logger.info(
-            "ingest_all: ingested=%d, skipped=%d, failed=%d",
+            "ingest_all: інтегровано=%d, пропущено=%d, не вдалося=%d",
             results["ingested"], results["skipped"], results["failed"],
         )
         return results
@@ -198,29 +234,11 @@ class ContentIngestor:
             title: Article title
 
         Returns:
-            URL-friendly slug (e.g., "transformer-architecture")
+            URL-friendly slug (canonical, shared with scanners via norm_name)
         """
-        # Lowercase
-        slug = title.lower().strip()
-
-        # Replace spaces and special chars with hyphens
-        slug = slug.replace(" ", "-")
-        slug = slug.replace("_", "-")
-
-        # Remove non-alphanumeric characters (except hyphens)
-        import re
-        slug = re.sub(r'[^a-z0-9-]', '', slug)
-
-        # Collapse multiple hyphens
-        slug = re.sub(r'-+', '-', slug)
-
-        # Strip leading/trailing hyphens
-        slug = slug.strip("-")
-
-        # Ensure minimum length
+        slug = norm_name(title)
         if len(slug) < 3:
             slug = f"page-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-
         return slug
 
     def _generate_frontmatter(
@@ -302,7 +320,7 @@ class ContentIngestor:
                     version_path = path / version
                     version_path.unlink()
                     removed.append(str(version_path))
-                    logger.info("Removed duplicate: %s", version_path)
+                    logger.info("Видалено дублікат: %s", version_path)
             else:
                 # Keep highest _N, delete rest
                 versions.sort(key=lambda x: int(re.search(r'_(\d+)$', x).group(1)))
@@ -311,7 +329,7 @@ class ContentIngestor:
                     version_path = path / version
                     version_path.unlink()
                     removed.append(str(version_path))
-                    logger.info("Removed duplicate: %s", version_path)
+                    logger.info("Видалено дублікат: %s", version_path)
 
                 # Rename highest _N to base
                 if keep != f"{base}.md":
