@@ -26,6 +26,7 @@ from typing import Optional
 
 from oslw.config.logging import get_logger
 from oslw.core.exceptions import FileManagerError
+from oslw.utils.slug import norm_name
 
 logger = get_logger("infrastructure.database")
 
@@ -96,7 +97,7 @@ class FileManager:
             wiki_root: Path to wiki root directory (from Settings, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
-        self.wiki_dir = self.wiki_root / "wiki"
+        self.wiki_dir = self.wiki_root
         self.raw_dir = self.wiki_root / "raw"
         self.index_path = self.wiki_dir / "index.md"
 
@@ -112,7 +113,7 @@ class FileManager:
         # Search for the file
         file_path = self._find_page_file(slug)
         if not file_path:
-            logger.warning("Page not found: %s", slug)
+            logger.warning("Сторінку не знайдено: %s", slug)
             return None
 
         return self._parse_page(file_path)
@@ -279,11 +280,19 @@ class FileManager:
         for md_file in self.raw_dir.rglob("*.md"):
             articles.append(md_file)
 
-        logger.info("Listed %d raw articles", len(articles))
+        logger.info("Список %d сирних статей", len(articles))
         return articles
 
     def write_page(self, page: PageMeta) -> Path:
         """Write a wiki page.
+
+        Deduplication (Layer 2): a normalized slug is unique across ALL category
+        directories. Before writing, the manager looks up any existing page with
+        the same normalized slug (regardless of which category it lives in). If an
+        identical page already exists (same SHA256 body) nothing is written and the
+        existing path is returned. If a page with the same slug but different
+        content exists, it is updated in place at its CURRENT location — never
+        duplicated into another category.
 
         Args:
             page: PageMeta with content to write
@@ -291,25 +300,45 @@ class FileManager:
         Returns:
             Path to the written file
         """
-        # Determine category directory
-        category = page.type
-        category_dir = self.wiki_dir / category
+        import hashlib
 
-        # Generate filename
-        filename = f"{page.slug}.md"
-        file_path = category_dir / filename
+        # Normalize the slug so that punctuation/whitespace variants of the same
+        # concept collapse to ONE filename. This is what makes "role:" and "role-"
+        # (and identical content across categories) resolve to a single file.
+        safe_slug = norm_name(page.slug) or page.slug
+
+        # Lookup existing page by normalized slug across every category
+        existing_path = self._find_page_file(safe_slug)
+        if existing_path and existing_path.exists():
+            existing = self._parse_page(existing_path)
+            new_hash = hashlib.sha256(page.content.encode("utf-8")).hexdigest()
+            # Identical content -> nothing to do, return existing location
+            if existing.sha256 == new_hash or existing.content == page.content:
+                logger.info("Дублікат (ідентичний вміст), пропуск: %s", safe_slug)
+                return existing_path
+            # Same slug, different content -> overwrite in place (no new category)
+            file_path = existing_path
+        else:
+            # Determine category directory (Layer 2 types)
+            category = page.type
+            category_dir = self.wiki_dir / category
+            # Generate filename from the canonical slug
+            filename = f"{safe_slug}.md"
+            file_path = category_dir / filename
 
         # Create directory if needed
-        category_dir.mkdir(parents=True, exist_ok=True)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Generate frontmatter
+        # Generate frontmatter (store the canonical slug)
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        content_hash = hashlib.sha256(page.content.encode("utf-8")).hexdigest()
         lines = [
             "---",
             f"title: {page.title}",
-            f"slug: {page.slug}",
+            f"slug: {safe_slug}",
             f"type: {page.type}",
             f"tags: [{', '.join(page.tags)}]",
+            f"sha256: {content_hash}",
             f"created: {page.created or now}",
             f"updated: {now}",
         ]
@@ -341,7 +370,7 @@ class FileManager:
             return False
 
         file_path.unlink()
-        logger.info("Deleted page: %s -> %s", slug, file_path)
+        logger.info("Видалено сторінку: %s -> %s", slug, file_path)
 
         # Update index
         self._remove_from_index(slug)
@@ -354,7 +383,7 @@ class FileManager:
         This scans all wiki pages and updates index.md.
         """
         if not self.wiki_dir.exists():
-            logger.warning("Wiki directory not found: %s", self.wiki_dir)
+            logger.warning("Директорію wiki не знайдено: %s", self.wiki_dir)
             return
 
         entries = []
