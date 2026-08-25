@@ -77,7 +77,7 @@ class IndexService:
             IndexError: If index.md doesn't exist or can't be parsed
         """
         if not self.index.load():
-            logger.warning("Index not found, returning empty index")
+            logger.warning("Індекс не знайдено, повертається порожній")
             return self.index
 
         return self.index
@@ -96,7 +96,7 @@ class IndexService:
         if not loaded:
             raise WikiIndexError("Failed to rebuild index")
 
-        logger.info("Rebuilt index with %d entries", len(self.index.entries))
+        logger.info("Перезбудовано індекс з %d записів", len(self.index.entries))
         return len(self.index.entries)
 
     def search_index(self, query: str) -> list[IndexEntry]:
@@ -120,7 +120,7 @@ class IndexService:
                 query_lower in entry.description.lower()):
                 results.append(entry)
 
-        logger.info("Search '%s' returned %d results", query, len(results))
+        logger.info("Пошук '%s' повернув %d результатів", query, len(results))
         return results
 
     def get_stats(self) -> IndexStats:

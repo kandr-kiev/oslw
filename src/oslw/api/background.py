@@ -172,12 +172,12 @@ def _run_graph_generate(task_id: str, force: bool, export_to_disk: bool) -> None
             }
 
         task["status"] = "completed"
-        logger.info("Background graph generation %s completed", task_id)
+        logger.info("Фонову генерацію графа %s завершено", task_id)
 
     except Exception as e:
         task["status"] = "failed"
         task["error"] = str(e)
-        logger.error("Background graph generation %s failed: %s", task_id, e)
+        logger.error("Фонову генерацію графа %s не виконано: %s", task_id, e)
 
 
 def _run_audit(task_id: str, sample_size: Optional[int]) -> None:
@@ -193,9 +193,9 @@ def _run_audit(task_id: str, sample_size: Optional[int]) -> None:
 
         task["result"] = result
         task["status"] = "completed"
-        logger.info("Background audit %s completed", task_id)
+        logger.info("Фоновий аудит %s завершено", task_id)
 
     except Exception as e:
         task["status"] = "failed"
         task["error"] = str(e)
-        logger.error("Background audit %s failed: %s", task_id, e)
+        logger.error("Фоновий аудит %s не виконано: %s", task_id, e)

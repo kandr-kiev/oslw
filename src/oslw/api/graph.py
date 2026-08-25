@@ -38,7 +38,7 @@ async def graph_stats():
             "density": round(stats.density, 6),
         }
     except Exception as e:
-        logger.error("Error getting graph stats: %s", e)
+        logger.error("Помилка отримання статистики графа: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -65,7 +65,7 @@ async def export_graph(output_dir: Optional[str] = None):
             "content": data,
         }
     except Exception as e:
-        logger.error("Error exporting graph: %s", e)
+        logger.error("Помилка експорту графа: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -81,7 +81,7 @@ async def get_node(slug: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error getting node %s: %s", slug, e)
+        logger.error("Помилка отримання вузла %s: %s", slug, e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -97,5 +97,5 @@ async def get_node_connections(slug: str):
             "total": len(connections),
         }
     except Exception as e:
-        logger.error("Error getting connections for %s: %s", slug, e)
+        logger.error("Помилка отримання зв'язків для %s: %s", slug, e)
         raise HTTPException(status_code=500, detail=str(e))

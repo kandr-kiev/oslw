@@ -197,13 +197,14 @@ class WikiPage:
 
     @staticmethod
     def generate_slug(title: str) -> str:
-        """Generate URL-friendly slug from title."""
-        slug = title.lower().strip()
-        slug = re.sub(r'[^\w\s-]', '', slug)
-        slug = re.sub(r'[\s_]+', '-', slug)
-        slug = re.sub(r'-+', '-', slug)
-        slug = slug.strip('-')
-        return slug or "untitled"
+        """Generate URL-friendly slug from title.
+
+        Uses the shared canonical normalizer so that the same title always
+        produces the same slug everywhere in the wiki.
+        """
+        from oslw.utils.slug import norm_name
+
+        return norm_name(title) or "untitled"
 
     @classmethod
     def from_meta(cls, meta) -> "WikiPage":

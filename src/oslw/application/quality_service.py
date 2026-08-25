@@ -84,7 +84,7 @@ class QualityService:
             DoctorReport with diagnosis results
         """
         report = self.doctor.diagnose(layer=layer)
-        logger.info("Diagnosis complete: %d issues found", len(report.issues))
+        logger.info("Діагностику завершено: знайдено %d проблем", len(report.issues))
         return report
 
     def validate_page(self, slug: str) -> list[str]:
@@ -101,18 +101,27 @@ class QualityService:
             return [f"Page not found: {slug}"]
 
         errors = self.linter.validate_page(page)
-        logger.info("Validated page %s: %d errors", slug, len(errors))
+        logger.info("Сторінку %s підтверджено: %d помилок", slug, len(errors))
         return errors
 
     def find_duplicates(self) -> list[dict]:
         """Find duplicate pages in the wiki.
 
         Returns:
-            List of duplicate groups
+            List of duplicate groups as dicts
         """
         groups = self.dedup.find_duplicates()
-        logger.info("Found %d duplicate groups", len(groups))
-        return groups
+        logger.info("Знайдено %d груп дублікатів", len(groups))
+        # Convert DuplicateGroup objects to dicts for JSON serialization
+        return [
+            {
+                "base_slug": g.base_slug,
+                "duplicates": g.duplicates,
+                "sha256": g.sha256,
+                "reason": g.reason,
+            }
+            for g in groups
+        ]
 
     def cleanup_duplicates(self, dry_run: bool = True) -> list[str]:
         """Clean up duplicate pages.
@@ -124,7 +133,7 @@ class QualityService:
             List of files that would be/were deleted
         """
         removed = self.dedup.cleanup_duplicates(dry_run=dry_run)
-        logger.info("Cleanup %s: %d files %s",
+        logger.info("Очищення %s: %d файлів %s",
                    "dry run" if dry_run else "actual",
                    len(removed), "would be removed" if dry_run else "removed")
         return removed

@@ -60,7 +60,7 @@ async def list_pages(
             "pages": page_list,
         }
     except Exception as e:
-        logger.error("Error listing pages: %s", e)
+        logger.error("Помилка списку сторінок: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -90,7 +90,7 @@ async def get_page(slug: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Error reading page %s: %s", slug, e)
+        logger.error("Помилка читання сторінки %s: %s", slug, e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -127,7 +127,7 @@ async def get_stats():
             "tags": sorted(list(all_tags)),
         }
     except Exception as e:
-        logger.error("Error getting stats: %s", e)
+        logger.error("Помилка отримання статистики: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -180,5 +180,5 @@ async def search_pages(
             "results": results[:limit],
         }
     except Exception as e:
-        logger.error("Error searching pages: %s", e)
+        logger.error("Помилка пошуку сторінок: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

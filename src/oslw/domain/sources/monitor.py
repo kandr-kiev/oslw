@@ -161,7 +161,7 @@ class SourceMonitor:
                 self._sources[source.name] = source
         except (json.JSONDecodeError, KeyError) as e:
             logger = __import__("oslw.config.logging", fromlist=["get_logger"]).get_logger("domain.sources.monitor")
-            logger.error("Failed to load sources: %s", e)
+            logger.error("Помилка завантаження джерел: %s", e)
 
     def _save_sources(self) -> None:
         """Save sources to JSON file."""
@@ -294,8 +294,10 @@ class SourceMonitor:
 
         elif source.type == SourceType.GITHUB:
             scanner = GitHubScanner()
+            # Парсимо repo у форматі owner/repo з URL або використовуємо repo_key
+            repo = self._parse_github_repo(source)
             return scanner.fetch(
-                repo=source.url,
+                repo=repo,
                 source_name=source.name,
                 tags=source.tags,
                 limit=10,
@@ -361,3 +363,40 @@ class SourceMonitor:
             ))
 
         return articles
+
+    @staticmethod
+    def _parse_github_repo(source: SourceConfig) -> str:
+        """Парсимо GitHub repo у форматі owner/repo.
+
+        Пріоритет:
+        1. repo_key з source.tags (якщо додано в sources.json)
+        2. Парсинг URL https://github.com/owner/repo → owner/repo
+        3. Повернення url як є (fallback)
+
+        Args:
+            source: SourceConfig з GitHub джерелом
+
+        Returns:
+            Repo у форматі owner/repo
+        """
+        # Спробуємо взяти repo_key з tags (якщо додано вручну)
+        # Примітка: repo_key зберігається як окремий field у sources.json
+        # але SourceConfig не має repo_key поля — парсимо з URL
+
+        url = source.url
+        if not url:
+            return ""
+
+        # Якщо URL вже у форматі owner/repo — повертаємо як є
+        if "/" in url and not url.startswith("http"):
+            return url
+
+        # Парсимо https://github.com/owner/repo → owner/repo
+        if "github.com/" in url:
+            parts = url.split("github.com/")[-1].strip("/")
+            # Видаляємо зайве (наприклад /releases, /tree/main тощо)
+            parts = parts.split("/")[0] + "/" + parts.split("/")[1] if len(parts.split("/")) >= 2 else parts
+            return parts
+
+        # Fallback — повертаємо URL як є
+        return url

@@ -87,7 +87,7 @@ class NewspaperDigest:
         # Sort by timestamp
         entries.sort(key=lambda e: e.timestamp, reverse=True)
 
-        logger.info("Generated digest with %d entries", len(entries))
+        logger.info("Згенеровано дайджест з %d записів", len(entries))
         return entries
 
     def _check_recent_changes(self, cutoff: datetime) -> list[DigestEntry]:
@@ -100,7 +100,7 @@ class NewspaperDigest:
             List of DigestEntry
         """
         entries = []
-        wiki_dir = self.wiki_root / "wiki"
+        wiki_dir = self.wiki_root
 
         if not wiki_dir.exists():
             return entries

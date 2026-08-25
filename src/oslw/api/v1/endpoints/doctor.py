@@ -105,7 +105,7 @@ def diagnose_wiki(
             },
         )
     except Exception as e:
-        logger.error("Error diagnosing wiki: %s", str(e))
+        logger.error("Помилка діагностики wiki: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -145,5 +145,5 @@ def cure_wiki(
             "dry_run": request.dry_run,
         }
     except Exception as e:
-        logger.error("Error curing wiki: %s", str(e))
+        logger.error("Помилка лікування wiki: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))

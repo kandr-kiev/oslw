@@ -91,12 +91,12 @@ class Settings(BaseSettings):
     @property
     def wiki_path(self) -> Path:
         """Path to wiki pages directory."""
-        return self.wiki_root / "wiki"
+        return self.wiki_root
 
     @property
     def index_path(self) -> Path:
         """Path to wiki index.md."""
-        return self.wiki_root / "wiki" / "index.md"
+        return self.wiki_root / "index.md"
 
     @property
     def graph_file(self) -> Path:

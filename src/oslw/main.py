@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     setup_logging(settings)
     logger = get_logger("main")
     logger.info("OSLW starting on %s:%d", settings.api_host, settings.api_port)
-    logger.info("Wiki root: %s", settings.wiki_root)
+    logger.info("Корінь wiki: %s", settings.wiki_root)
     logger.info("Database: %s", settings.database_url)
     
     # Verify wiki root exists

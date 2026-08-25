@@ -71,7 +71,7 @@ class GraphGenerator:
             wiki_root: Path to wiki root directory (from Settings, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
-        self.wiki_dir = self.wiki_root / "wiki"
+        self.wiki_dir = self.wiki_root
         self.nodes: dict[str, GraphNode] = {}
         self.edges: list[GraphEdge] = []
         self._cache_mtime: float = 0
@@ -96,7 +96,7 @@ class GraphGenerator:
         if not force and self._cache_valid:
             cache_path = self.wiki_root / "graph-from-wiki.json"
             if cache_path.exists():
-                logger.info("Using valid cached graph: %d nodes, %d edges",
+                logger.info("Використано валідний кешований граф: %d вузлів, %d ребер",
                            len(self.nodes), len(self.edges))
                 return {
                     "nodes": [n.__dict__ for n in self.nodes.values()],
@@ -110,7 +110,7 @@ class GraphGenerator:
                 graph_data = json.loads(cache_path.read_text(encoding="utf-8"))
                 nodes_data = graph_data.get("nodes", [])
                 if nodes_data:
-                    logger.info("Loaded cached graph: %d nodes, %d edges",
+                    logger.info("Завантажено кешований граф: %d вузлів, %d ребер",
                                len(nodes_data), len(graph_data.get("edges", [])))
                     # Rebuild internal state from cache
                     self.nodes = {
@@ -128,7 +128,7 @@ class GraphGenerator:
                         "edges": [e.__dict__ for e in self.edges],
                     }
             except (json.JSONDecodeError, IOError) as e:
-                logger.warning("Failed to load cached graph: %s, regenerating", e)
+                logger.warning("Не вдалося завантажити кешований граф: %s, перезгенеровано", e)
 
         # Full regeneration
         self.nodes = {}
@@ -176,7 +176,7 @@ class GraphGenerator:
                 if not any(e.source == slug and e.target == link for e in self.edges):
                     self.edges.append(GraphEdge(source=slug, target=link))
 
-        logger.info("Generated graph: %d nodes, %d edges", len(self.nodes), len(self.edges))
+        logger.info("Згенеровано граф: %d вузлів, %d ребер", len(self.nodes), len(self.edges))
 
         return {
             "nodes": [n.__dict__ for n in self.nodes.values()],
@@ -193,7 +193,7 @@ class GraphGenerator:
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
-        logger.info("Saved graph to %s", path)
+        logger.info("Збережено граф у %s", path)
 
     def _extract_slug(self, text: str, file_path: Path) -> Optional[str]:
         """Extract slug from frontmatter or filename.

@@ -109,7 +109,7 @@ class WikiDoctor:
             issues.extend(self._check_metadata())
 
         result.issues = issues
-        result.total_pages = sum(1 for _ in self.wiki_root.glob("wiki/**/*.md"))
+        result.total_pages = sum(1 for _ in self.wiki_root.glob("**/*.md"))
 
         # Generate summary
         result.summary = {
@@ -141,7 +141,7 @@ class WikiDoctor:
             List of issues found
         """
         issues = []
-        index_path = self.wiki_root / "wiki" / "index.md"
+        index_path = self.wiki_root / "index.md"
 
         if not index_path.exists():
             issues.append(DiagnosisIssue(
@@ -163,7 +163,7 @@ class WikiDoctor:
                 index_slugs.add(match.group(1))
 
         # Check for orphaned wiki files (not in index)
-        wiki_dir = self.wiki_root / "wiki"
+        wiki_dir = self.wiki_root
         for md_file in wiki_dir.rglob("*.md"):
             if md_file.name in ("index.md", "SCHEMA.md"):
                 continue
@@ -190,7 +190,7 @@ class WikiDoctor:
             List of issues found
         """
         issues = []
-        wiki_dir = self.wiki_root / "wiki"
+        wiki_dir = self.wiki_root
 
         for md_file in wiki_dir.rglob("*.md"):
             if md_file.name in ("index.md", "SCHEMA.md"):
@@ -243,7 +243,7 @@ class WikiDoctor:
             List of issues found
         """
         issues = []
-        wiki_dir = self.wiki_root / "wiki"
+        wiki_dir = self.wiki_root
 
         for md_file in wiki_dir.rglob("*.md"):
             if md_file.name in ("index.md", "SCHEMA.md"):
@@ -306,7 +306,7 @@ class WikiDoctor:
         Returns:
             DiagnosisResult with issues after fixing
         """
-        logger.info("Running WikiDoctor cure (layer=%s, dry_run=%s)", layer, dry_run)
+        logger.info("Запуск лікування WikiDoctor (layer=%s, dry_run=%s)", layer, dry_run)
 
         # Run diagnosis first
         result = self.diagnose(layer)
@@ -321,7 +321,7 @@ class WikiDoctor:
         # Re-diagnose after fixes
         result = self.diagnose(layer)
 
-        logger.info("Cure complete: %d issues remaining", len(result.issues))
+        logger.info("Лікування завершено: залишилось %d проблем", len(result.issues))
         return result
 
     def _fix_index(self, dry_run: bool = True) -> None:
@@ -330,8 +330,8 @@ class WikiDoctor:
         Args:
             dry_run: If True, don't apply changes
         """
-        index_path = self.wiki_root / "wiki" / "index.md"
-        wiki_dir = self.wiki_root / "wiki"
+        index_path = self.wiki_root / "index.md"
+        wiki_dir = self.wiki_root
 
         # Parse existing index
         existing_slugs = set()
@@ -352,7 +352,7 @@ class WikiDoctor:
                 orphaned.append((slug, str(md_file.relative_to(wiki_dir))))
 
         if orphaned:
-            logger.info("Found %d orphaned pages to add to index", len(orphaned))
+            logger.info("Знайдено %d сирітських сторінок для додавання в індекс", len(orphaned))
             if not dry_run:
                 # Add entries to index
                 text = index_path.read_text(encoding="utf-8")
@@ -367,7 +367,7 @@ class WikiDoctor:
         Args:
             dry_run: If True, don't apply changes
         """
-        wiki_dir = self.wiki_root / "wiki"
+        wiki_dir = self.wiki_root
 
         for md_file in wiki_dir.rglob("*.md"):
             if md_file.name in ("index.md", "SCHEMA.md"):
@@ -393,4 +393,4 @@ class WikiDoctor:
                     )
                     text = frontmatter + text
                     md_file.write_text(text, encoding="utf-8")
-                    logger.info("Added default frontmatter to %s", md_file)
+                    logger.info("Додано стандартний frontmatter до %s", md_file)

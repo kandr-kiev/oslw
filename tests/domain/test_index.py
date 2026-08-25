@@ -10,7 +10,7 @@ class TestWikiIndex:
 
     def test_load_empty_index(self, temp_wiki_root):
         """Test loading an empty index file."""
-        index_path = temp_wiki_root / "wiki" / "index.md"
+        index_path = temp_wiki_root / "index.md"
         index_path.write_text("# LLM-Wiki Index\n\n")
 
         index = WikiIndex(temp_wiki_root)
@@ -27,7 +27,7 @@ class TestWikiIndex:
 ### attention-mechanism [wiki/concepts/attention-mechanism.md]
 ### encoder-decoder [wiki/comparisons/encoder-decoder.md]
 """
-        index_path = temp_wiki_root / "wiki" / "index.md"
+        index_path = temp_wiki_root / "index.md"
         index_path.write_text(index_content)
 
         index = WikiIndex(temp_wiki_root)
@@ -111,7 +111,7 @@ class TestWikiIndex:
         index.save()
 
         # Verify file was written
-        index_path = temp_wiki_root / "wiki" / "index.md"
+        index_path = temp_wiki_root / "index.md"
         assert index_path.exists()
 
         content = index_path.read_text()

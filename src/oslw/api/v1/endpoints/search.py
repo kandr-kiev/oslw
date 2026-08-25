@@ -79,5 +79,5 @@ def search_wiki(
             hits=hits[:request.limit],
         )
     except Exception as e:
-        logger.error("Error searching wiki: %s", str(e))
+        logger.error("Помилка пошуку wiki: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))

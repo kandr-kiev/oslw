@@ -58,7 +58,7 @@ def get_graph(
             total=len(nodes),
         )
     except Exception as e:
-        logger.error("Error getting graph: %s", str(e))
+        logger.error("Помилка отримання графа: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -99,5 +99,5 @@ def generate_graph(
             total=len(nodes),
         )
     except Exception as e:
-        logger.error("Error generating graph: %s", str(e))
+        logger.error("Помилка генерації графа: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))

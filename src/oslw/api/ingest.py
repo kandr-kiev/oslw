@@ -55,7 +55,7 @@ async def batch_ingest(request: BatchIngestRequest):
 
         return BatchIngestResponse(**results)
     except Exception as e:
-        logger.error("Error in batch ingest: %s", e)
+        logger.error("Помилка пакетної інтеграції: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -89,5 +89,5 @@ async def ingest_stats():
             "top_files": file_info,
         }
     except Exception as e:
-        logger.error("Error getting ingest stats: %s", e)
+        logger.error("Помилка отримання статистики інтеграції: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

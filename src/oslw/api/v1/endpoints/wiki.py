@@ -67,7 +67,7 @@ def list_pages(
             for p in result.pages
         ]
     except Exception as e:
-        logger.error("Error listing pages: %s", str(e))
+        logger.error("Помилка списку сторінок: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -103,7 +103,7 @@ def get_page(
             detail=f"Wiki page not found: {slug}",
         )
     except Exception as e:
-        logger.error("Error getting page %s: %s", slug, str(e))
+        logger.error("Помилка отримання сторінки %s: %s", slug, str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -148,7 +148,7 @@ def create_page(
     except Exception as e:
         if "already exists" in str(e):
             raise HTTPException(status_code=409, detail=str(e))
-        logger.error("Error creating page: %s", str(e))
+        logger.error("Помилка створення сторінки: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -192,7 +192,7 @@ def update_page(
             detail=f"Wiki page not found: {slug}",
         )
     except Exception as e:
-        logger.error("Error updating page %s: %s", slug, str(e))
+        logger.error("Помилка оновлення сторінки %s: %s", slug, str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -216,5 +216,5 @@ def delete_page(
             detail=f"Wiki page not found: {slug}",
         )
     except Exception as e:
-        logger.error("Error deleting page %s: %s", slug, str(e))
+        logger.error("Помилка видалення сторінки %s: %s", slug, str(e))
         raise HTTPException(status_code=500, detail=str(e))

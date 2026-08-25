@@ -19,6 +19,7 @@ import typer
 
 from oslw.config.settings import Settings, settings
 from oslw.config.logging import setup_logging, get_logger
+from oslw.utils.slug import norm_name
 from oslw.application import (
     PageService,
     IndexService,
@@ -98,8 +99,8 @@ def status(
     setup_logging(s)
     logger = get_logger("cli.status")
 
-    logger.info("Wiki root: %s", s.wiki_root)
-    logger.info("Exists: %s", s.wiki_root.exists())
+    logger.info("Корінь wiki: %s", s.wiki_root)
+    logger.info("Існує: %s", s.wiki_root.exists())
 
     if not s.wiki_root.exists():
         typer.echo(f"❌ Wiki root does not exist: {s.wiki_root}")
@@ -210,7 +211,7 @@ def doctor(
     except typer.Exit:
         raise
     except Exception as e:
-        logger.error("Error running doctor: %s", str(e))
+        logger.error("Помилка запуску doctor: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
         raise typer.Exit(1)
 
@@ -254,11 +255,15 @@ def sync(
             typer.echo(f"   No raw articles to sync")
             raise typer.Exit(0)
 
-        # Build set of existing slugs ONCE (O(1) lookup per article)
+        # Build set of existing normalized slugs ONCE (O(1) lookup per article).
+        # Uses the same canonical normalization as the slug generators so that a
+        # raw article whose title normalizes to an existing page's slug is skipped
+        # regardless of which category the existing page lives in.
         existing_slugs = set()
         all_pages = page_service.file_manager.list_wiki_pages()
         for p in all_pages:
-            existing_slugs.add(p.slug)
+            if p.slug:
+                existing_slugs.add(norm_name(p.slug))
         typer.echo(f"   Existing wiki pages: {len(existing_slugs)}")
 
         # Apply limit if specified
@@ -281,7 +286,7 @@ def sync(
                         title = line[2:].strip()
                         break
 
-                slug = title.lower().replace(" ", "-").replace("—", "-")[:100]
+                slug = norm_name(title)
 
                 if slug in existing_slugs and not force:
                     typer.echo(f"   ⏭️  Skip: {title}")
@@ -304,7 +309,7 @@ def sync(
                     synced += 1
 
             except Exception as e:
-                logger.error("Error syncing %s: %s", article_path, str(e))
+                logger.error("Помилка синхронізації %s: %s", article_path, str(e))
                 typer.echo(f"   ❌ Error: {article_path} - {str(e)}")
                 errors += 1
 
@@ -318,7 +323,7 @@ def sync(
     except typer.Exit:
         raise
     except Exception as e:
-        logger.error("Error running sync: %s", str(e))
+        logger.error("Помилка запуску sync: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
         raise typer.Exit(1)
 
@@ -375,7 +380,7 @@ def graph(
     except typer.Exit:
         raise
     except Exception as e:
-        logger.error("Error managing graph: %s", str(e))
+        logger.error("Помилка керування графом: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
         raise typer.Exit(1)
 
@@ -432,7 +437,7 @@ def digest(
     except typer.Exit:
         raise
     except Exception as e:
-        logger.error("Error generating digest: %s", str(e))
+        logger.error("Помилка генерації дайджесту: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
         raise typer.Exit(1)
 
@@ -487,7 +492,7 @@ def monitor(
     except typer.Exit:
         raise
     except Exception as e:
-        logger.error("Error monitoring sources: %s", str(e))
+        logger.error("Помилка моніторингу джерел: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
         raise typer.Exit(1)
 
@@ -551,7 +556,7 @@ def page(
         raise typer.Exit(0)
 
     except Exception as e:
-        logger.error("Error managing page: %s", str(e))
+        logger.error("Помилка керування сторінкою: %s", str(e))
         typer.echo(f"❌ Error: {str(e)}")
         raise typer.Exit(1)
 

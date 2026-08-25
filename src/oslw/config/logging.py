@@ -74,6 +74,6 @@ def get_logger(name: str) -> logging.Logger:
 
     Usage:
         logger = get_logger("oslw.domain.wiki")
-        logger.info("Page created: %s", slug)
+        logger.info("Сторінку створено: %s", slug)
     """
     return logging.getLogger(f"oslw.{name}")

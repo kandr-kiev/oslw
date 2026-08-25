@@ -51,7 +51,7 @@ def get_today_digest(
             ],
         )
     except Exception as e:
-        logger.error("Error generating digest: %s", str(e))
+        logger.error("Помилка генерації дайджесту: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -86,5 +86,5 @@ def generate_digest(
             ],
         )
     except Exception as e:
-        logger.error("Error generating digest: %s", str(e))
+        logger.error("Помилка генерації дайджесту: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))

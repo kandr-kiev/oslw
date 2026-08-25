@@ -52,7 +52,7 @@ async def get_digest(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error("Error generating digest: %s", e)
+        logger.error("Помилка генерації дайджесту: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -78,7 +78,7 @@ async def save_digest(
             "size": path.stat().st_size,
         }
     except Exception as e:
-        logger.error("Error saving digest: %s", e)
+        logger.error("Помилка збереження дайджесту: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -103,7 +103,7 @@ async def recent_entries(
             "entries": [e.to_dict() for e in entries],
         }
     except Exception as e:
-        logger.error("Error getting recent entries: %s", e)
+        logger.error("Помилка отримання останніх записів: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -124,5 +124,5 @@ async def list_saved_digests(
             "total": len(digests),
         }
     except Exception as e:
-        logger.error("Error listing digests: %s", e)
+        logger.error("Помилка списку дайджестів: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

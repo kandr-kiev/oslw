@@ -99,10 +99,10 @@ class GraphService:
         graph = self.generator.generate(force=force)
         # Handle both dict (cached) and object (generated) return types
         if isinstance(graph, dict):
-            logger.info("Loaded cached graph: %d nodes, %d edges",
+            logger.info("Завантажено кешований граф: %d вузлів, %d ребер",
                        len(graph.get("nodes", {})), len(graph.get("edges", [])))
         else:
-            logger.info("Generated graph: %d nodes, %d edges",
+            logger.info("Згенеровано граф: %d вузлів, %d ребер",
                        len(graph.nodes), len(graph.edges))
             graph = graph.to_dict()
 
@@ -127,7 +127,7 @@ class GraphService:
             SearchResults with matching pages
         """
         results = self.query.search(query, depth=depth, limit=limit)
-        logger.info("Search '%s' returned %d results",
+        logger.info("Пошук '%s' повернув %d результатів",
                    query, len(results))
         return SearchResults(
             query=query,
@@ -178,7 +178,7 @@ class GraphService:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
 
-        logger.info("Exported graph to %s", output_path)
+        logger.info("Експортовано граф у %s", output_path)
         return Path(output_path)
 
     def get_node(self, slug: str) -> Optional[dict]:

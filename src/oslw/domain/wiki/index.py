@@ -70,7 +70,7 @@ class WikiIndex:
             wiki_root: Path to wiki root directory (configurable, not hardcoded)
         """
         self.wiki_root = Path(wiki_root)
-        self.index_path = self.wiki_root / "wiki" / "index.md"
+        self.index_path = self.wiki_root / "index.md"
         self.entries: dict[str, IndexEntry] = {}
         self._raw_lines: list[str] = []
 

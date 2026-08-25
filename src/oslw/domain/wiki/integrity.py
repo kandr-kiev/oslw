@@ -139,13 +139,13 @@ class PageIntegrity:
         """
         # Try common patterns
         patterns = [
-            self.wiki_root / "wiki" / "concept" / f"{link}.md",
-            self.wiki_root / "wiki" / "comparisons" / f"{link}.md",
-            self.wiki_root / "wiki" / "playbooks" / f"{link}.md",
-            self.wiki_root / "wiki" / "synthesis" / f"{link}.md",
-            self.wiki_root / "wiki" / "entities" / f"{link}.md",
-            self.wiki_root / "wiki" / "transcripts" / "chats" / f"{link}.md",
-            self.wiki_root / "wiki" / f"{link}.md",
+            self.wiki_root / "concept" / f"{link}.md",
+            self.wiki_root / "comparisons" / f"{link}.md",
+            self.wiki_root / "playbooks" / f"{link}.md",
+            self.wiki_root / "synthesis" / f"{link}.md",
+            self.wiki_root / "entities" / f"{link}.md",
+            self.wiki_root / "transcripts" / "chats" / f"{link}.md",
+            self.wiki_root / f"{link}.md",
         ]
 
         for pattern in patterns:

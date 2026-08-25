@@ -87,6 +87,6 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     """Log startup information."""
-    logger.info("OSLW API starting on %s:%d", settings.api_host, settings.api_port)
-    logger.info("Wiki root: %s", settings.wiki_root)
-    logger.info("Frontend dir: %s", FRONTEND_DIR)
+    logger.info("OSLW API запускається на %s:%d", settings.api_host, settings.api_port)
+    logger.info("Корінь wiki: %s", settings.wiki_root)
+    logger.info("Директорія frontend: %s", FRONTEND_DIR)

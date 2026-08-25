@@ -87,7 +87,7 @@ class IntegrityService:
             IntegrityResult with check results
         """
         result = self.integrity.check_page(slug)
-        logger.info("Checked page %s: sha256=%s, links=%s",
+        logger.info("Перевірено сторінку %s: sha256=%s, посилання=%s",
                    slug, result.sha256_match, len(result.broken_links))
         return result
 
@@ -115,7 +115,7 @@ class IntegrityService:
                 report.missing_files += 1
                 report.issues.append(f"Missing file: {page_meta.slug}")
 
-        logger.info("Integrity check: %d pages, score=%.2f",
+        logger.info("Перевірка цілісності: %d сторінок, рейтинг=%.2f",
                    report.total_checked, report.health_score)
         return report
 
@@ -130,11 +130,11 @@ class IntegrityService:
         """
         page = self.file_manager.read_page(slug)
         if not page:
-            logger.warning("Page not found: %s", slug)
+            logger.warning("Сторінку не знайдено: %s", slug)
             return 0
 
         fixed = self.integrity.fix_wikilinks(page.path)
-        logger.info("Fixed %d links in %s", fixed, slug)
+        logger.info("Виправлено %d посилань у %s", fixed, slug)
         return fixed
 
     def verify_all_sha256(self) -> IntegrityReport:

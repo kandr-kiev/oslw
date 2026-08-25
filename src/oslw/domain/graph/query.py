@@ -78,7 +78,7 @@ class GraphQuery:
         """
         if not self.graph_path.exists():
             # Generate graph if not exists
-            logger.info("Graph not found, generating...")
+            logger.info("Граф не знайдено, генерація...")
             generator = GraphGenerator(self.wiki_root)
             graph_data = generator.generate()
             self._load_from_data(graph_data)
@@ -112,7 +112,7 @@ class GraphQuery:
             if source in self._adjacency:
                 self._adjacency[source].append(target)
 
-        logger.info("Loaded graph: %d nodes, %d edges", len(self.nodes), len(self.edges))
+        logger.info("Завантажено граф: %d вузлів, %d ребер", len(self.nodes), len(self.edges))
 
     def search(
         self,
@@ -136,7 +136,7 @@ class GraphQuery:
         candidates = self._fuzzy_match(query)
 
         if not candidates:
-            logger.warning("No candidates found for query: %s", query)
+            logger.warning("Кандидатів не знайдено для запиту: %s", query)
             return []
 
         # BFS from candidates
@@ -186,7 +186,7 @@ class GraphQuery:
             if all(any(w in sw for w in words for sw in slug_words) for w in words):
                 matches.append(node_id)
 
-        logger.info("Fuzzy match found %d candidates for '%s'", len(matches), query)
+        logger.info("Знайдено %d кандидатів за fuzzy match для '%s'", len(matches), query)
         return matches
 
     def _bfs_traversal(

@@ -55,7 +55,7 @@ def list_sources(
             total=len(sources),
         )
     except Exception as e:
-        logger.error("Error listing sources: %s", str(e))
+        logger.error("Помилка списку джерел: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -79,5 +79,5 @@ def check_sources(
             "source_filter": request.source_name,
         }
     except Exception as e:
-        logger.error("Error checking sources: %s", str(e))
+        logger.error("Помилка перевірки джерел: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))

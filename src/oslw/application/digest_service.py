@@ -79,7 +79,7 @@ class DigestService:
             List of DigestEntry objects
         """
         entries = self.digest.generate(hours=hours)
-        logger.info("Generated digest for %d hours: %d entries",
+        logger.info("Згенеровано дайджест за %d годин: %d записів",
                    hours, len(entries))
         return entries
 
@@ -212,7 +212,7 @@ class DigestService:
 
         full_path.write_text(content, encoding="utf-8")
 
-        logger.info("Saved digest to %s (%d bytes)", full_path, len(content))
+        logger.info("Збережено дайджест у %s (%d байт)", full_path, len(content))
         return full_path
 
     def get_recent_entries(self, limit: int = 10,

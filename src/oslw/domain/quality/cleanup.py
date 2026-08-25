@@ -67,9 +67,9 @@ class Deduplication:
         Returns:
             Combined list of DuplicateGroup from all methods
         """
-        wiki_dir = self.wiki_root / "wiki"
+        wiki_dir = self.wiki_root
         if not wiki_dir.exists():
-            logger.warning("Wiki directory not found: %s", wiki_dir)
+            logger.warning("Директорію wiki не знайдено: %s", wiki_dir)
             return []
 
         # Run all three detection methods
@@ -79,7 +79,7 @@ class Deduplication:
 
         all_groups = suffix_groups + sha_groups + sim_groups
         logger.info(
-            "Found %d duplicate groups (suffix: %d, sha256: %d, similarity: %d)",
+            "Знайдено %d груп дублікатів (suffix: %d, sha256: %d, similarity: %d)",
             len(all_groups), len(suffix_groups), len(sha_groups), len(sim_groups),
         )
         return all_groups
@@ -132,7 +132,7 @@ class Deduplication:
                 ))
 
         logger.info(
-            "Found %d duplicate groups by suffix in %s",
+            "Знайдено %d груп дублікатів by suffix in %s",
             len(groups),
             path,
         )
@@ -184,7 +184,7 @@ class Deduplication:
                 ))
 
         logger.info(
-            "Found %d duplicate groups by SHA256 in %s",
+            "Знайдено %d груп дублікатів by SHA256 in %s",
             len(groups),
             path,
         )
@@ -258,7 +258,7 @@ class Deduplication:
                     processed.add(dup)
 
         logger.info(
-            "Found %d duplicate groups by similarity in %s",
+            "Знайдено %d груп дублікатів by similarity in %s",
             len(groups),
             path,
         )
@@ -273,9 +273,9 @@ class Deduplication:
         Returns:
             List of removed/would-be-removed file paths
         """
-        wiki_dir = self.wiki_root / "wiki"
+        wiki_dir = self.wiki_root
         if not wiki_dir.exists():
-            logger.warning("Wiki directory not found: %s", wiki_dir)
+            logger.warning("Директорію wiki не знайдено: %s", wiki_dir)
             return []
 
         # Find by suffix
@@ -291,7 +291,7 @@ class Deduplication:
                     if dup_file.exists():
                         if not dry_run:
                             dup_file.unlink()
-                            logger.info("Removed duplicate: %s", dup_file)
+                            logger.info("Видалено дублікат: %s", dup_file)
                         removed.append(str(dup_file))
             else:
                 # Keep highest _N, delete rest
@@ -302,14 +302,14 @@ class Deduplication:
                     for v in versions[:-1]:
                         if not dry_run:
                             v.unlink()
-                            logger.info("Removed duplicate: %s", v)
+                            logger.info("Видалено дублікат: %s", v)
                         removed.append(str(v))
 
                     # Rename highest to base
                     if keep.name != f"{group.base_slug}.md":
                         if not dry_run:
                             keep.rename(wiki_dir / f"{group.base_slug}.md")
-                            logger.info("Renamed %s -> %s.md", keep, group.base_slug)
+                            logger.info("Перейменовано %s -> %s.md", keep, group.base_slug)
                         removed.append(str(keep))
 
         return removed

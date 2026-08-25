@@ -114,7 +114,7 @@ class SourceService:
                 enabled=source.enabled,
             ))
 
-        logger.info("Listed %d sources", len(stats))
+        logger.info("Список %d джерел", len(stats))
         return stats
 
     def ingest_content(
@@ -156,9 +156,9 @@ class SourceService:
         )
 
         if result.success:
-            logger.info("Ingested: %s -> %s", title, result.raw_path)
+            logger.info("Інтегровано: %s -> %s", title, result.raw_path)
         else:
-            logger.error("Ingestion failed: %s - %s", title, result.errors)
+            logger.error("Інтеграція не вдалася: %s - %s", title, result.errors)
 
         return report
 
@@ -178,7 +178,7 @@ class SourceService:
         """
         results = self.monitor.monitor_all()
 
-        logger.info("Monitored %d sources, found %d updates",
+        logger.info("Перевірено %d джерел, знайдено %d оновлень",
                    len(results),
                    sum(1 for r in results.values() if r.get("updated")))
 
@@ -192,7 +192,7 @@ class SourceService:
         """
         articles = self.file_manager.list_raw_articles()
         paths = [str(a) for a in articles]
-        logger.info("Listed %d raw articles", len(paths))
+        logger.info("Список %d сирних статей", len(paths))
         return paths
 
     def cleanup_duplicates(self, directory: str = "raw/articles") -> list[str]:
@@ -206,7 +206,7 @@ class SourceService:
         """
         dir_path = self.file_manager.wiki_root / directory
         removed = self.ingestor.cleanup_duplicates(dir_path)
-        logger.info("Cleaned up %d duplicates in %s", len(removed), directory)
+        logger.info("Очищено %d дублікатів у %s", len(removed), directory)
         return removed
 
     def add_source(
@@ -246,7 +246,7 @@ class SourceService:
         )
 
         self.monitor.add_source(source)
-        logger.info("Added source: %s (%s)", name, source_type)
+        logger.info("Додано джерело: %s (%s)", name, source_type)
 
         return source
 
@@ -261,5 +261,5 @@ class SourceService:
         """
         removed = self.monitor.remove_source(name)
         if removed:
-            logger.info("Removed source: %s", name)
+            logger.info("Видалено джерело: %s", name)
         return removed
