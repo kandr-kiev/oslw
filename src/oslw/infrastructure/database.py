@@ -214,8 +214,13 @@ class FileManager:
         if not self.wiki_dir.exists():
             return None
 
+        # index.md is a special page addressed by slug "index"
+        if slug == "index":
+            idx = self.wiki_dir / "index.md"
+            return idx if idx.exists() else None
+
         for md_file in self.wiki_dir.rglob("*.md"):
-            if md_file.name in ("index.md", "SCHEMA.md"):
+            if md_file.name in ("SCHEMA.md",):
                 continue
 
             # Check if filename matches slug

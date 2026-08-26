@@ -134,6 +134,18 @@ class WikiDoctor:
 
         return result
 
+    # Directories excluded from quality checks (service/infra, not knowledge content)
+    EXCLUDED_DIRS = {".git", ".obsidian", ".hermes", "_archive", "logs", "config",
+                     "docs", "templates", "raw", "node_modules", "__pycache__"}
+    EXCLUDED_FILES = {"index.md", "SCHEMA.md", "log.md", "README.md", "CHANGELOG.md"}
+
+    def _is_content_page(self, md_file) -> bool:
+        """True if the file is a Layer 2 wiki content page."""
+        if md_file.name in self.EXCLUDED_FILES:
+            return False
+        rel_parts = set(md_file.relative_to(self.wiki_root).parts[:-1])
+        return not (rel_parts & self.EXCLUDED_DIRS)
+
     def _check_index(self) -> list[DiagnosisIssue]:
         """Check index.md consistency.
 
@@ -165,7 +177,7 @@ class WikiDoctor:
         # Check for orphaned wiki files (not in index)
         wiki_dir = self.wiki_root
         for md_file in wiki_dir.rglob("*.md"):
-            if md_file.name in ("index.md", "SCHEMA.md"):
+            if not self._is_content_page(md_file):
                 continue
             slug = md_file.stem
             if slug not in index_slugs:
@@ -193,7 +205,7 @@ class WikiDoctor:
         wiki_dir = self.wiki_root
 
         for md_file in wiki_dir.rglob("*.md"):
-            if md_file.name in ("index.md", "SCHEMA.md"):
+            if not self._is_content_page(md_file):
                 continue
 
             text = md_file.read_text(encoding="utf-8")
@@ -246,7 +258,7 @@ class WikiDoctor:
         wiki_dir = self.wiki_root
 
         for md_file in wiki_dir.rglob("*.md"):
-            if md_file.name in ("index.md", "SCHEMA.md"):
+            if not self._is_content_page(md_file):
                 continue
 
             text = md_file.read_text(encoding="utf-8")
@@ -345,7 +357,7 @@ class WikiDoctor:
         # Find orphaned pages
         orphaned = []
         for md_file in wiki_dir.rglob("*.md"):
-            if md_file.name in ("index.md", "SCHEMA.md"):
+            if not self._is_content_page(md_file):
                 continue
             slug = md_file.stem
             if slug not in existing_slugs:
@@ -370,7 +382,7 @@ class WikiDoctor:
         wiki_dir = self.wiki_root
 
         for md_file in wiki_dir.rglob("*.md"):
-            if md_file.name in ("index.md", "SCHEMA.md"):
+            if not self._is_content_page(md_file):
                 continue
 
             text = md_file.read_text(encoding="utf-8")

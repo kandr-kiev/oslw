@@ -166,7 +166,7 @@ class QualityService:
                 stats.pages_with_sha256 += 1
 
         # Find orphan pages (simplified - pages not in index)
-        index = self.file_manager.read_page(self.file_manager.wiki_dir / "index.md")
+        index = self.file_manager.read_page("index")
         if index:
             linked_slugs = set()
             for line in index.content.splitlines():

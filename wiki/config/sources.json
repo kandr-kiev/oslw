@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "name": "example-rss",
+      "type": "rss",
+      "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "enabled": true,
+      "interval_hours": 6,
+      "tags": [
+        "news",
+        "technology"
+      ]
+    },
+    {
+      "name": "openai-releases",
+      "type": "github",
+      "url": "openai/openai-python",
+      "enabled": true,
+      "interval_hours": 24,
+      "tags": [
+        "openai",
+        "api"
+      ]
+    }
+  ]
+}
