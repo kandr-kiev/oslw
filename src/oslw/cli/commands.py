@@ -12,8 +12,10 @@ Provides commands for wiki management:
 
 from pathlib import Path
 from datetime import datetime, timezone
+import html as _html
 import json
 import os
+import re
 
 import typer
 
@@ -35,6 +37,76 @@ cli = typer.Typer(
     help="OSLW - Modular Wiki Management System",
     add_completion=True,
 )
+
+
+def _extract_title(content: str, filename: str) -> str:
+    """Витягує назву статті з raw-файлу.
+
+    Порядок джерел:
+    1. H1 у перших 10 рядках (markdown)
+    2. Поле `title:` у YAML frontmatter
+    3. `<title>...</title>` у сирному HTML
+    4. Фолбек — ім'я файлу без розширення та дати
+    """
+    lines = content.splitlines()[:10]
+    for line in lines:
+        if line.startswith("# "):
+            t = line[2:].strip()
+            if t:
+                return t
+    # Frontmatter title
+    m = re.search(r"^title:\s*(.+)$", content, re.MULTILINE)
+    if m:
+        t = m.group(1).strip().strip("'\"")
+        if t:
+            return t
+    # HTML <title>
+    m = re.search(r"<title[^>]*>(.*?)</title>", content, re.IGNORECASE | re.DOTALL)
+    if m:
+        t = _html.unescape(m.group(1)).strip()
+        # Видаляємо суфікси сайтів типу " - DEV Community", " | Blog"
+        t = re.split(r"\s+[-|–—]\s+", t)[0].strip()
+        if t:
+            return t
+    # Фолбек: ім'я файлу (без розширення та кінцевої дати)
+    stem = Path(filename).stem
+    stem = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", stem)
+    return stem or "Untitled"
+
+
+_SCHEMA_TAGS: set[str] | None = None
+
+
+def _schema_tags() -> set[str]:
+    """Кешує таксонію тегів SCHEMA.md (utils/schema_tags.json)."""
+    global _SCHEMA_TAGS
+    if _SCHEMA_TAGS is None:
+        p = Path(__file__).resolve().parents[1] / "utils" / "schema_tags.json"
+        try:
+            _SCHEMA_TAGS = set(json.loads(p.read_text(encoding="utf-8")))
+        except Exception:
+            _SCHEMA_TAGS = set()
+    return _SCHEMA_TAGS
+
+
+def _sync_tags(content: str) -> list[str]:
+    """Формує теги сторінки для sync за таксонією SCHEMA.md.
+
+    1. Береться `tags:` з frontmatter raw-файлу (якщо є).
+    2. Залишаються лише теги, присутні в таксонії SCHEMA.md.
+    3. Якщо жоден не пройшов фільтр — порожній список
+       (раніше був хардкод `["synced"]`, якого немає в таксонії).
+    """
+    m = re.search(r"^tags:\s*\[(.*?)\]", content, re.MULTILINE)
+    if not m:
+        return []
+    schema = _schema_tags()
+    tags = []
+    for t in m.group(1).split(","):
+        t = t.strip().strip("'\"")
+        if t and t in schema and t not in tags:
+            tags.append(t)
+    return tags
 
 
 def _get_settings(wiki_root: Path | None = None) -> Settings:
@@ -280,12 +352,7 @@ def sync(
                 with open(article_path, "r", encoding="utf-8") as f:
                     content = f.read()
 
-                title = "Untitled"
-                for line in content.splitlines()[:10]:
-                    if line.startswith("# "):
-                        title = line[2:].strip()
-                        break
-
+                title = _extract_title(content, Path(article_path).name)
                 slug = norm_name(title)
 
                 if slug in existing_slugs and not force:
@@ -302,7 +369,7 @@ def sync(
                         content=content,
                         slug=slug,
                         page_type="concept",
-                        tags=["synced"],
+                        tags=_sync_tags(content),
                     )
                     existing_slugs.add(slug)  # Update set after creation
                     typer.echo(f"   ✅ Synced: {title}")

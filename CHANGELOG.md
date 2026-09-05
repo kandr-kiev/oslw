@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### oslw-cli sync: title extraction & taxonomy tags (2026-09-05)
+- **Multi-source title extraction** (`src/oslw/cli/commands.py`, new
+  `_extract_title()`): sync now falls back through H1 → frontmatter `title:`
+  → HTML `<title>` (entities unescaped, site suffix after ` - `/` | `
+  stripped) → filename stem (date suffix removed). Previously raw files
+  without an H1 in the first 10 lines (2 126 raw HTML dumps) all collapsed
+  to "Untitled" → slug collision → skipped. Dry-run recovery: **Would sync
+  13 → 1 721** (Skipped 6 305 → 3 702), Errors 0.
+- **Taxonomy-based tags** (`_sync_tags()` + `src/oslw/utils/schema_tags.json`):
+  hardcoded `tags=["synced"]` (absent from SCHEMA.md taxonomy) replaced with
+  raw frontmatter `tags:` filtered against the 412-tag SCHEMA.md taxonomy.
+- **SCHEMA.md taxonomy extended**: new "Source & Ecosystem Tags" section
+  (119 high-frequency tags, count ≥ 20, extracted from raw frontmatter);
+  taxonomy header updated 262 → 412 tags. `schema_tags.json` generated from
+  the taxonomy (dot in tag names allowed, e.g. `llama.cpp`).
+- **sources.json**: `mistral-ai` URL fixed to working RSS
+  (`https://mistral.ai/rss.xml`, verified 200 + valid XML); `meta-ai`
+  disabled (no public RSS feed — `ai.meta.com/blog/` is HTML, all RSS
+  candidates 404); `zai-org-z-ai-sdk-java` (GitHub 404) and
+  `MoonshotAI-kimi-code` disabled per user decision (uninteresting orgs).
+  `venturebeat-ai` "not well-formed" is a bot-wall 429, not a URL error —
+  left enabled, re-test on next run.
+- **Tests**: `tests/test_sync_title.py` (11 tests, all green; full suite
+  114 passed).
+
 #### oslw-cli slug normalization & deduplication (task t_13b3807a)
 - **Canonical slug normalization** (`src/oslw/utils/slug.py`): new single
   `norm_name()` is now the one source of truth for every slug producer —
