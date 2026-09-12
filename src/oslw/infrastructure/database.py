@@ -100,6 +100,10 @@ class FileManager:
         self.wiki_dir = self.wiki_root
         self.raw_dir = self.wiki_root / "raw"
         self.index_path = self.wiki_dir / "index.md"
+        # Lazily-built filename index (stem -> path) so _find_page_file is O(1)
+        # after the first scan instead of rglob()-ing the whole wiki per lookup.
+        self._slug_index: Optional[dict] = None
+        self._fm_slug_index: Optional[dict] = None
 
     def read_page(self, slug: str) -> Optional[PageMeta]:
         """Read a wiki page by slug.
@@ -219,24 +223,32 @@ class FileManager:
             idx = self.wiki_dir / "index.md"
             return idx if idx.exists() else None
 
-        for md_file in self.wiki_dir.rglob("*.md"):
-            if md_file.name in ("SCHEMA.md",):
-                continue
+        # Fast path: filename stem matches the slug (index built once per process).
+        if self._slug_index is None:
+            self._slug_index = {}
+            for md_file in self.wiki_dir.rglob("*.md"):
+                if md_file.name in ("SCHEMA.md",):
+                    continue
+                self._slug_index.setdefault(md_file.stem, md_file)
 
-            # Check if filename matches slug
-            if md_file.stem == slug:
-                return md_file
+        hit = self._slug_index.get(slug)
+        if hit:
+            return hit
 
-            # Check if frontmatter slug matches
-            try:
-                raw = md_file.read_text(encoding="utf-8")
-                match = self.SLUG_PATTERN.search(raw)
-                if match and match.group(1) == slug:
-                    return md_file
-            except Exception:
-                continue
+        # Fallback: frontmatter slug may differ from filename. Index it once
+        # (one full scan), then lookups stay O(1).
+        if self._fm_slug_index is None:
+            self._fm_slug_index = {}
+            for md_file in self._slug_index.values():
+                try:
+                    raw = md_file.read_text(encoding="utf-8")
+                    match = self.SLUG_PATTERN.search(raw)
+                    if match:
+                        self._fm_slug_index.setdefault(match.group(1), md_file)
+                except Exception:
+                    continue
 
-        return None
+        return self._fm_slug_index.get(slug)
 
     def list_wiki_pages(self, category: Optional[str] = None) -> list[PageMeta]:
         """List all wiki pages.
@@ -356,6 +368,12 @@ class FileManager:
         # Write file
         content = "\n".join(lines) + "\n\n" + page.content
         file_path.write_text(content, encoding="utf-8")
+
+        # Keep the slug indexes warm for lookups within the same process/run.
+        if self._slug_index is not None:
+            self._slug_index.setdefault(safe_slug, file_path)
+        if self._fm_slug_index is not None:
+            self._fm_slug_index.setdefault(safe_slug, file_path)
 
         logger.info("Wrote page: %s -> %s", page.slug, file_path)
         return file_path

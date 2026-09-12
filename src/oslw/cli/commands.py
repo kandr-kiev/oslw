@@ -295,7 +295,7 @@ def sync(
         help="Path to wiki root directory (or set OSLW_WIKI_ROOT env)",
     ),
     dry_run: bool = typer.Option(
-        True, "--dry-run",
+        True, "--dry-run/--no-dry-run",
         help="Don't apply changes, just report",
     ),
     force: bool = typer.Option(
